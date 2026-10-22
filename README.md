@@ -84,11 +84,30 @@ September 2026, so older Codex sessions count toward tools and sessions but not 
 ### OpenAI
 
 1. Go to [platform.openai.com](https://platform.openai.com) > Organization Settings > Admin Keys
-2. Create an admin key (requires org owner role)
+2. Create an admin key (requires org owner role), restricted to **Usage API Scope: Read**; leave the other scopes at None.
 3. Add to `.env.local`:
    ```
    OPENAI_ADMIN_KEY=sk-admin-xxxxx
    ```
+
+For multiple billing organizations, use `OPENAI_ADMIN_KEYS` instead. Copy each
+organization ID from Organization Settings > General and create a Usage API Read
+key in each organization:
+
+```dotenv
+OPENAI_ADMIN_KEYS='[{"organizationId":"org-first","adminKey":"sk-admin-first"},{"organizationId":"org-second","adminKey":"sk-admin-second"}]'
+```
+
+Use one key per **distinct organization**, even if you have several logins to it.
+Duplicate organization IDs or keys are rejected before any API call. When the
+array is set, the single `OPENAI_ADMIN_KEY` is ignored. The dashboard combines
+organizations under OpenAI and sums matching daily line items; it does not show
+an account breakdown. If any organization fails, the sync keeps the previous
+stored totals and reports the error rather than writing a partial bill. Changing
+the configured organization set does not remove older imported rows; use a fresh
+database if you need a different historical scope. Restart the service after
+editing the private environment file.
+
 
 ### xAI / Grok
 
