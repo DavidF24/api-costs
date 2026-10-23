@@ -1,4 +1,5 @@
 import { getClaudeUsage } from "./claude";
+import { getGrokUsage, getCachedGrokUsage } from "./grok";
 import { getCodexUsage } from "./codex";
 import { withWeeklyTrends } from "./history";
 import type { PlanUsage } from "./parse";
@@ -20,9 +21,14 @@ function safely(id: PlanUsage["id"], name: string, read: () => PlanUsage): PlanU
   }
 }
 
-export function getPlanUsage(): PlanUsage[] {
+export function getPlanUsage(grok = getCachedGrokUsage()): PlanUsage[] {
   return withWeeklyTrends([
     safely("claude", "Claude Max", getClaudeUsage),
     safely("codex", "ChatGPT Codex", getCodexUsage),
+    grok,
   ]);
+}
+
+export async function refreshPlanUsage(): Promise<PlanUsage[]> {
+  return getPlanUsage(await getGrokUsage());
 }

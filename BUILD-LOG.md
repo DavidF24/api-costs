@@ -74,3 +74,34 @@ Validation:
 Independent review: a fresh GPT-6-Astra reviewer marked implementation commit
 49513c6 Ready with no actionable findings. The generated app contains no credentials;
 it calls the installed launcher script.
+
+
+# Automatic desktop subscription usage
+
+Assignment: Codex · "Set up api-costs spend tracker" · 01a16549-f1da-7070-8cdc-4c1e96056b2a
+
+Claude Desktop does not invoke the terminal status line. Read its exact local usage
+HTTP cache entry instead, including provider observation and reset times. The reader
+checks the documented Chromium Simple cache format, checksums, exact URL and key
+hash, bounded sizes, successful JSON response, timestamps and quota ranges. No
+Claude credentials or cookies are accessed. Keep the newer terminal source as a fallback.
+
+Grok subscription usage comes from its read-only billing surfaces using the existing
+local CLI access token. An active complete protobuf period with an omitted proto3
+percentage is zero; malformed, inactive and missing responses remain unavailable.
+No coding agent is launched and no login token is refreshed or persisted. Requests
+are bounded, deduplicated and throttled to once per minute.
+
+Validation: all 48 tests passed, including synthetic compressed Chromium entries,
+checksum/key mismatch and stale/future rejection, reset handling, complete proto3
+zero, nonzero percentages, truncated/error frames, inactive periods, and separate
+Bot allowance parsing. Targeted ESLint, TypeScript and the production build passed.
+The existing Turbopack filesystem-tracing and Node module-type warnings remain.
+Live read-only probes returned Claude Desktop 33% session / 61% weekly, and Grok
+0% weekly, with provider reset times; no credentials or raw private responses were
+printed or saved. Added a Refresh usage control; automatic reads continue each minute.
+
+Initial independent review found malformed-date acceptance and optional network reads
+delaying the initial page. Corrections reject non-finite period bounds and keep
+initial rendering synchronous with local/cached readings. The client refreshes
+network-backed usage immediately after mount. A fresh GPT-6-Astra reviewer rechecked both corrections at e3152e1 and marked the implementation Ready with no remaining actionable findings.

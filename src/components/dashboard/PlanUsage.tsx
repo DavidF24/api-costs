@@ -7,12 +7,13 @@ import { formatClockTime, formatDuration, formatRelativeTime } from "@/lib/forma
 import { WeekTrend } from "./WeekTrend";
 
 const REFRESH_MS = 60_000;
-const STALE_MS = 6 * 60 * 60 * 1000;
 
 type Props = { initial: PlanUsageType[]; serverNow: number };
 
 export function PlanUsage({ initial, serverNow }: Props) {
   const [plans, setPlans] = useState(initial);
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshRef = useRef<(() => void) | null>(null);
   // Starts at the server's clock so the first client render matches the server HTML.
   const [now, setNow] = useState(serverNow);
   const latestRequest = useRef(0);
@@ -22,6 +23,7 @@ export function PlanUsage({ initial, serverNow }: Props) {
     async function refresh() {
       setNow(Date.now());
       const id = ++latestRequest.current;
+      setRefreshing(true);
       try {
         const res = await fetch("/api/plans", { cache: "no-store" });
         const body = res.ok ? await res.json() : null;
@@ -29,14 +31,20 @@ export function PlanUsage({ initial, serverNow }: Props) {
         if (body && !cancelled && id === latestRequest.current) setPlans(body);
       } catch {
         // keep the last good reading
+      } finally {
+        if (!cancelled && id === latestRequest.current) setRefreshing(false);
       }
     }
+    refreshRef.current = refresh;
+    const initialRefresh = setTimeout(refresh, 0);
     const timer = setInterval(refresh, REFRESH_MS);
     const clock = setInterval(() => setNow(Date.now()), 15_000);
     const onFocus = () => refresh();
     window.addEventListener("focus", onFocus);
     return () => {
       cancelled = true;
+      refreshRef.current = null;
+      clearTimeout(initialRefresh);
       clearInterval(timer);
       clearInterval(clock);
       window.removeEventListener("focus", onFocus);
@@ -49,7 +57,12 @@ export function PlanUsage({ initial, serverNow }: Props) {
         <h2 id="plans-heading" className="text-base font-semibold">
           Plan limits
         </h2>
-        <p className="text-xs text-muted">The notch on each gauge marks how much of the window has passed.</p>
+        <div className="flex items-center gap-4">
+          <p className="text-xs text-muted">Updates each minute. The notch marks time elapsed.</p>
+          <button type="button" disabled={refreshing} onClick={() => refreshRef.current?.()} className="text-xs font-medium text-muted hover:text-foreground disabled:opacity-50" aria-busy={refreshing}>
+            {refreshing ? "Refreshing…" : "Refresh usage"}
+          </button>
+        </div>
       </div>
       <div className="plan-cluster">
         {plans.map((plan) => (
@@ -63,7 +76,7 @@ export function PlanUsage({ initial, serverNow }: Props) {
 
 function PlanGroup({ plan, now }: { plan: PlanUsageType; now: number }) {
   const updatedMs = plan.updatedAt ? new Date(plan.updatedAt).getTime() : null;
-  const stale = updatedMs !== null && now - updatedMs > STALE_MS;
+  const stale = updatedMs !== null && now - updatedMs > (plan.staleAfterMinutes ?? 360) * 60000;
 
   return (
     <article className="plan-group">
@@ -121,7 +134,7 @@ function Gauge({ window: reading, now }: { window: QuotaWindow; now: number }) {
   const notch = elapsed === null ? null : START_DEG + 360 * SWEEP * elapsed;
 
   const resetText = w.reset
-    ? "Reset. New usage shows after your next reply."
+    ? "Reset. Waiting for a fresh usage reading."
     : w.resetsAt !== null
       ? `Resets ${formatClockTime(w.resetsAt, nowSec)}, in ${formatDuration(w.resetsAt - nowSec)}`
       : null;
