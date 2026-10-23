@@ -10,7 +10,7 @@ API spend uses actual billed amounts from each provider's billing API. Subscript
 - **Grok at API prices** -- recorded Grok 4.5/4.6/4.7 tokens use the matching public model's standard short-context input/cache/output rates, including local `-build` labels. Rates verified October 22, 2026 at https://docs.x.ai/developers/pricing. Turn aggregates do not reveal each request's prompt length or speed tier, so long-context / Fast premiums and tool fees are excluded. Retained old rows are priced on read without reindexing. Grok Bot has message history only, so its equivalent is unavailable.
 - **Activity scope** -- the toggle filters models and summary totals. Combined output tokens include recorded local and API output; sessions and messages cover local history only. API activity charts only token counts actually reported by providers. Dollar estimates and billed charges are never added together. The message calendars always cover the last year; the range picker controls summaries, tools, API tokens and model details.
 
-- **Plan limits** -- Claude (Pro/Max), ChatGPT Codex and Grok as dials per window, with reset times, a pace notch and a straight-line projection ("runs out Thu 2 PM"), plus a burn-up chart of each weekly limit against even pace (needs the optional `history.jsonl` quota log in `~/.local/state/ai-usage/`)
+- **Plan limits** -- Claude (Pro/Max), ChatGPT Codex and Grok as dials per window, with reset times, a pace notch and a straight-line projection ("runs out Thu 2 PM"), plus a burn-up chart of each weekly limit against even pace, using the app’s saved quota readings (and an optional legacy `history.jsonl` log)
 - **Spend summary** -- this month with daily bars and the change against last month at the same point, a month-end projection, last 30 days, this week, this year
 - **Activity** -- from local Claude Code, Codex, Grok and Grok Bot history on this machine: sessions, messages, a 12-month heatmap per tool (Claude Code, Codex, Grok and Grok Bot, each on its own scale), MCP servers (with per-tool counts), skills, subagents and built-in tools, and every model used with tokens and its cost at API list prices
 - **Auto-sync** -- the server syncs every provider, refreshes quotas and indexes local logs every 30 minutes (`AUTO_SYNC_MINUTES`, 0 turns it off); the page refreshes itself every 2 minutes
@@ -126,7 +126,7 @@ their recorded timestamps. Widgets, approvals, attachments and user messages do 
 Grok and Grok Bot are adjacent heatmaps, with independent color scales, under their
 shared subscription. Bot history contains no model/token/cost data, so those values
 are not estimated. Grok tokens are available only for recorded completed turns;
-Grok model costs remain unpriced. Output-token totals cover recorded sources only.
+Known Grok models receive standard API-equivalent estimates. Output-token totals cover recorded sources only.
 No credentials, Keychain access or network calls are needed for either activity
 reader. Only aggregate metadata is stored in SQLite, never transcript text. Logs
 pruned before the first index cannot be recovered. Unrecognized/corrupt snapshots
@@ -136,6 +136,50 @@ for an immediate index, or use local-only `POST /api/activity/index`.
 Costs for Claude Code and Codex are estimates at API list prices (`src/lib/activity/pricing.ts`);
 unpriced models show no cost. Claude Code logs usage per message; Codex logs it only since
 September 2026, so older Codex sessions count toward tools and sessions but not tokens.
+
+## Historical data and backups
+
+The app stores data in `data/costs.sqlite` (override with `DATABASE_PATH`). The
+primary database and its historical records have no automatic expiration:
+
+- `cost_entries`: daily provider/model billing records, reported tokens/requests
+  where available, and sync timestamps. A normal sync requests recent data but
+  does not delete older saved rows. Updated line items replace matching records.
+- `activity_usage`, `activity_sessions`, `activity_tools`: dated local token/message,
+  session and tool metadata. Missing source files do not remove indexed history.
+  A changed source file replaces that file's indexed rows, so this is a current
+  aggregate index rather than an immutable transcript archive. No message text
+  or complete source logs are stored.
+- `quota_observations`: subscription percentages, window lengths, reset times,
+  source timestamps and first/last observed times. Duplicate cached readings are
+  merged. Missing/error/expired readings do not become zero usage. Old quota rows
+  remain after resets; the weekly chart queries only the current period.
+
+Quota capture runs every five minutes while the local service is running, even
+with the browser closed, and on dashboard quota reads. It begins 30 seconds after
+startup. Existing source apps must still provide valid readings. Sleep, shutdown,
+expired logins and unavailable source data leave gaps that cannot be reconstructed.
+Set `HISTORY_CAPTURE_MINUTES` to a positive interval, or `0` to disable background
+quota capture and backups (dashboard quota reads still save valid readings).
+
+The same background loop creates one verified online SQLite backup per UTC day in
+`data/backups/costs-YYYY-MM-DD.sqlite`, next to the configured database. Backups
+include committed WAL transactions, are published atomically with private file
+permissions, and do not overwrite existing daily snapshots. No daily snapshots
+are automatically deleted. They include all database tables, but not `.env.local`,
+credentials or the original source logs. Errors are written to the service error
+log and retried on the next tick; previous backups remain intact.
+
+The backups are on the same disk and protect against accidental database changes,
+not loss of the Mac or disk. Include the data directory in an existing external
+backup for that protection. To restore, stop the service, retain a safety copy of
+its current database and WAL/SHM files, then use a verified snapshot as the new
+`costs.sqlite` with no old WAL/SHM files beside it; restart the service. Use SQLite's
+online backup API for a live export rather than copying an active WAL database.
+
+Historical analysis can query the primary database or a backup with any SQLite
+client. Stored token counts support later recalculation; API-equivalent dollar
+estimates depend on the price assumptions and are distinct from billed spend.
 
 ## Provider setup
 

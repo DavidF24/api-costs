@@ -221,3 +221,12 @@ rechecked corrections db38536 and dfe4419 as Ready, with no actionable findings.
 No credentials, Keychain items, live provider APIs or private user histories were
 accessed by the reviewer. Existing Node module-type and Turbopack tracing warnings
 remain. No new costs, CI changes or secret-file changes.
+
+# Preserve historical dashboard data
+
+Assignment: Codex · "Set up api-costs spend tracker" · 01a16549-f1da-7070-8cdc-4c1e96056b2a
+
+Retain subscription quota observations in SQLite, capture them without an open
+browser, and take verified daily online SQLite backups. Existing billing/activity
+history remains retained; no historical data expiration is introduced. Validation
+and independent review in progress.

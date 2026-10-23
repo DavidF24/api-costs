@@ -118,3 +118,20 @@ export const activitySessions = sqliteTable("activity_sessions", {
   endedAt: text("ended_at").notNull(),
   isSubagent: integer("is_subagent").notNull(), // 0 | 1
 });
+
+// Append-only quota readings. Repeated source readings only update last-seen metadata.
+export const quotaObservations = sqliteTable("quota_observations", {
+  observationKey: text("observation_key").primaryKey(),
+  provider: text("provider").notNull(),
+  windowKey: text("window_key").notNull(),
+  windowMinutes: integer("window_minutes").notNull(),
+  resetsAt: integer("resets_at"),
+  usedPercent: real("used_percent").notNull(),
+  sourceUpdatedAt: text("source_updated_at").notNull(),
+  firstSeenAt: text("first_seen_at").notNull(),
+  lastSeenAt: text("last_seen_at").notNull(),
+  observations: integer("observations").notNull().default(1),
+}, (table) => [
+  index("quota_observations_time").on(table.sourceUpdatedAt),
+  index("quota_observations_window").on(table.provider, table.windowKey, table.resetsAt),
+]);
