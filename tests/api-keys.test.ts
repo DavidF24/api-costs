@@ -124,3 +124,15 @@ test("OpenRouter refresh preserves deleted key history and corrects only the key
   const view=readKeys(db,"2026-10-01","2026-11-01");assert.equal(view.daily.length,1);assert.equal(view.keys.find((k)=>k.keyId==="deleted-key")!.cost,1);
   saveKeyBatch(db,{...batch,coverageKeyIds:[],usage:[]});assert.equal(readKeys(db,"2026-10-01","2026-11-01").daily.length,1);db.close();
 });
+
+test("xAI and OpenRouter expired keys never appear active even when not disabled", async () => {
+  process.env.XAI_MANAGEMENT_KEY="credential";process.env.XAI_TEAM_ID="team-one";process.env.OPENROUTER_MGMT_KEY="credential";
+  for(const provider of ["xai","openrouter"] as const) {
+    const s=sink();await collectKeys(provider,s,new Date("2026-10-22T12:00:00Z"),async (url) => {
+      if(String(url).includes("/activity"))return response({data:[]});
+      const rows=[{name:"Expired",disabled:false,apiKeyId:"key-expired",hash:"hash-expired",expireTime:"2026-10-21T00:00:00Z",expires_at:"2026-10-21T00:00:00Z"},{name:"Live",disabled:false,apiKeyId:"key-live",hash:"hash-live",expireTime:"2027-01-01T00:00:00Z",expires_at:"2027-01-01T00:00:00Z"}];
+      return response(provider==="xai"?{apiKeys:rows}:{data:rows});
+    });
+    assert.deepEqual(s.batches[0].keys!.map((k)=>k.status),["expired","active"]);
+  }
+});

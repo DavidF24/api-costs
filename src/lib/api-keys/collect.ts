@@ -35,8 +35,9 @@ export async function collectKeys(provider: KeyProvider, sink: KeySink, now = ne
   function metadata(row: Obj, idField: string, hintField: string, hash = false): KeyMetadata {
     const keyId = keyIdentifier(row[idField]);
     const hint = maskedHint(row[hintField]);
+    const expires = dateValue(row.expires_at ?? row.expireTime);
     return { keyId, name: safeText(row.name), hint: hint ?? identifierHint(keyId), hintKind: hint ? "key" : hash ? "hash" : "id",
-      status: safeText(row.status) || (row.disabled === true ? "disabled" : "active"), project: safeText(row.workspace_id ?? row.project_id),
+      status: expires && Date.parse(expires) <= now.getTime() ? "expired" : safeText(row.status) || (row.disabled === true ? "disabled" : "active"), project: safeText(row.workspace_id ?? row.project_id),
       createdAt: dateValue(row.created_at ?? row.createTime), lastUsedAt: dateValue(row.last_used_at) };
   }
   // Reject repeating cursors rather than saving a truncated or duplicated inventory.
