@@ -121,4 +121,12 @@ rendering stays local; Grok and Bot network reads run concurrently after mount.
 A live read-only probe returned HTTP 200, 15.921351% usage, and an active weekly
 period ending October 26 at 04:52:50 UTC (October 25, 11:52 PM America/Chicago).
 Only quota/expiry metadata was printed; no credential or private response body
-was printed or saved. Implementation validation and independent review pending.
+was printed or saved.
+
+Validation: all 52 tests, TypeScript checks, targeted ESLint, and the isolated
+production build passed. Synthetic tests cover active-account selection, wrong
+keys, malformed/oversized encrypted stores, expired tokens, invalid weekly dates,
+trial-only allowances and absent percentages. Existing Node module-type and
+Turbopack filesystem-tracing warnings remain. A fresh GPT-6-Astra reviewer marked
+implementation commit 9621a25 Ready with no actionable findings; no credentials,
+Keychain items or live provider endpoints were accessed by the reviewer.
