@@ -166,5 +166,18 @@ API prices. Bot has message metadata only; no token or cost estimate is presente
 Private message text is neither returned nor persisted. Both heatmaps stay adjacent
 and the copy explains the shared subscription and differing data coverage.
 
-Initial validation: 61 tests passed (9 new synthetic parser/discovery tests).
-Production build, live index and independent review are pending.
+Validation: all 62 tests passed, including 10 new synthetic parser/discovery tests,
+plus TypeScript and the production build. Full ESLint has zero errors and the
+pre-existing unused OpenRouter _since warning. Existing Node module-type and
+Turbopack filesystem-tracing warnings remain. The isolated live indexing endpoint
+returned no errors. A read-only parser probe recovered 517 Grok sessions and 8 Bot
+transcripts (about 8,560 and 458 assistant replies); only aggregate counts were
+printed. Actual totals continue to grow as the apps are used.
+
+Live validation found Node's line reader splitting legal Unicode U+2028/U+2029
+inside JSON strings. A bounded LF-only UTF-8 stream reader fixes those four logs;
+a synthetic long-record regression covers separators, multibyte buffer boundaries,
+an unterminated final record and corrupt-tail rejection. A fresh GPT-6-Astra reviewer
+marked implementation 5aa7916 Ready, then rechecked correction cb35c59 and again
+reported Ready with no actionable findings. No credentials, live provider endpoints,
+Keychain items or private transcripts were accessed by the reviewer.
