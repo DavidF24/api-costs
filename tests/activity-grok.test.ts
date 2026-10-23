@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, utimesSync, rmSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createGrokAccumulator, parseGrokBotTranscript } from "../src/lib/activity/grok-parse.ts";
-import { grokBotTranscriptId, listGrokFiles } from "../src/lib/activity/grok-files.ts";
+import { grokBotTranscriptId, listGrokFiles, streamGrokLines } from "../src/lib/activity/grok-files.ts";
 
 const id = "12345678-1234-1234-1234-123456789abc";
 const ms = Date.parse("2026-10-20T12:00:00Z");
@@ -101,5 +101,22 @@ test("Discovery selects known logs, ignores secret stores, and deduplicates move
     assert.equal(files.length,2);assert.equal(files.find(f=>f.source==="grok")?.project,"two");
     assert.deepEqual(new Set(files.map(f=>f.key)),new Set([`grok:${id}`,`grok-bot:${id}`]));
     assert.equal(listGrokFiles(join(root,"absent"),join(root,"absent2")).length,0);
+  } finally {rmSync(root,{recursive:true,force:true});}
+});
+
+
+test("Grok JSONL streaming preserves Unicode separators inside long JSON strings across buffers", async () => {
+  const root=mkdtempSync(join(tmpdir(),"activity-grok-lines-"));
+  try {
+    const path=join(root,"updates.jsonl");
+    const line=update("tool_call_update", {output:"a".repeat(70000)+"\u2028"+"β".repeat(50000)+"\u2029"});
+    writeFileSync(path, line+"\n"+reply());
+    const lines: string[]=[];await streamGrokLines(path, l=>lines.push(l));
+    assert.equal(lines.length,2);assert.equal(lines[0],line);
+    const a=createGrokAccumulator(id,"p",date);lines.forEach(a.line);
+    assert.equal(a.finish().usage[0].messages,1);
+    writeFileSync(path,reply()+"\n"+'{"params":');
+    const b=createGrokAccumulator(id,"p",date);
+    await assert.rejects(streamGrokLines(path,b.line),/Incomplete/);
   } finally {rmSync(root,{recursive:true,force:true});}
 });

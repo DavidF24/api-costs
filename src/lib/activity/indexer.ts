@@ -14,7 +14,7 @@ import { createClaudeAccumulator, type ClaudeFinishResult } from "./claude-parse
 import { createCodexAccumulator, type CodexFinishResult } from "./codex-parse";
 import { estimateCost } from "./pricing";
 import { createGrokAccumulator, parseGrokBotTranscript } from "./grok-parse";
-import { listGrokFiles } from "./grok-files";
+import { listGrokFiles, streamGrokLines } from "./grok-files";
 
 export type IndexResult = {
   filesSeen: number;
@@ -143,7 +143,7 @@ async function parseFile(entry: FileEntry): Promise<ClaudeFinishResult | CodexFi
   }
   if (entry.source === "grok") {
     const acc = createGrokAccumulator(entry.sessionId!, entry.project!, toDate);
-    await streamLines(entry.path, acc.line);
+    await streamGrokLines(entry.path, acc.line);
     return acc.finish();
   }
   if (entry.source === "grok-bot") {

@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from "node:fs";
+import { createReadStream, readdirSync, statSync } from "node:fs";
 import { join, basename } from "node:path";
 
 export type GrokFile = { path: string; key: string; source: "grok" | "grok-bot"; isSubagent: boolean; sessionId: string; project: string };
@@ -45,4 +45,20 @@ export function grokBotTranscriptId(filename: string): string | null {
   }
   const key = String.fromCharCode(...bytes);
   return /^sand\.client\.slice\.account\.[^.]+\.transcript\.replicas\.([a-f0-9-]{36})$/.exec(key)?.[1] ?? null;
+}
+
+// JSONL records end at LF. Node readline also splits Unicode U+2028/U+2029,
+// which are legal inside JSON strings and occur in Grok tool output.
+export async function streamGrokLines(path: string, onLine: (line: string) => void): Promise<void> {
+  let pending = "";
+  for await (const chunk of createReadStream(path, { encoding: "utf8" })) {
+    pending += chunk;
+    let lf: number;
+    while ((lf = pending.indexOf("\n")) !== -1) {
+      onLine(pending.slice(0, lf));
+      pending = pending.slice(lf + 1);
+    }
+    if (pending.length > 16 * 1024 * 1024) throw new Error("Grok update exceeds size limit");
+  }
+  if (pending.trim()) onLine(pending);
 }
