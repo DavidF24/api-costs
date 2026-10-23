@@ -1,17 +1,19 @@
 import { sql, eq, and, gte, lte } from "drizzle-orm";
 import { db } from "../db";
 import { activityUsage, activityTools, activitySessions, costEntries } from "../db/schema";
+import { priceRecordedUsage } from "./pricing";
 import { toEasternDate } from "../timezone";
 
 export type ActivityDaily = {
   date: string;
-  source: string; // "claude-code" | "codex"
+  source: string; // local subscription source
   messages: number;
   input: number;
   output: number;
   cacheRead: number;
   cacheWrite: number; // cacheWrite5m + cacheWrite1h combined
   estCost: number; // sum of priced rows; a LOWER BOUND when some rows are unpriced (NULL)
+  unpricedTokens: number;
 };
 
 export type ActivityModel = {
@@ -21,7 +23,10 @@ export type ActivityModel = {
   lastUsed: string;
   tokens: number | null; // null when the source doesn't carry token counts (some cost_entries rows)
   estCost: number;
+  unpricedTokens?: number;
 };
+
+export type ApiActivityDaily = { date: string; source: string; input: number; output: number; cost: number };
 
 export type ToolCount = { name: string; count: number };
 // One row per subagent type; `models` splits it by the model it was dispatched with ("inherit" = session model)
@@ -50,6 +55,7 @@ export type ActivityTotals = {
 
 export type ActivityResult = {
   daily: ActivityDaily[];
+  apiDaily: ApiActivityDaily[];
   models: ActivityModel[];
   tools: ActivityToolsSummary;
   sessions: SessionsByDay[];
@@ -57,39 +63,73 @@ export type ActivityResult = {
   totals: ActivityTotals;
 };
 
-function getDailyUsage(start: string, end: string): ActivityDaily[] {
-  return db
-    .select({
-      date: activityUsage.date,
-      source: activityUsage.source,
-      messages: sql<number>`COALESCE(SUM(${activityUsage.messages}), 0)`,
-      input: sql<number>`COALESCE(SUM(${activityUsage.input}), 0)`,
-      output: sql<number>`COALESCE(SUM(${activityUsage.output}), 0)`,
-      cacheRead: sql<number>`COALESCE(SUM(${activityUsage.cacheRead}), 0)`,
-      cacheWrite: sql<number>`COALESCE(SUM(${activityUsage.cacheWrite5m} + ${activityUsage.cacheWrite1h}), 0)`,
-      estCost: sql<number>`COALESCE(SUM(${activityUsage.estCostUsd}), 0)`,
-    })
-    .from(activityUsage)
+// Keep model-level buckets until pricing is applied, then roll up for the UI.
+// This also prices old Grok rows that were indexed before Grok rates were known.
+function getLocalUsage(start: string, end: string) {
+  return db.select({
+    date: activityUsage.date,
+    source: activityUsage.source,
+    model: activityUsage.model,
+    messages: sql<number>`SUM(${activityUsage.messages})`,
+    input: sql<number>`SUM(${activityUsage.input})`,
+    output: sql<number>`SUM(${activityUsage.output})`,
+    cacheRead: sql<number>`SUM(${activityUsage.cacheRead})`,
+    cacheWrite5m: sql<number>`SUM(${activityUsage.cacheWrite5m})`,
+    cacheWrite1h: sql<number>`SUM(${activityUsage.cacheWrite1h})`,
+    recorded: sql<number | null>`SUM(${activityUsage.estCostUsd})`,
+    unpriced: sql<number>`SUM(CASE WHEN ${activityUsage.estCostUsd} IS NULL THEN ${activityUsage.input} + ${activityUsage.output} + ${activityUsage.cacheRead} + ${activityUsage.cacheWrite5m} + ${activityUsage.cacheWrite1h} ELSE 0 END)`,
+  }).from(activityUsage)
     .where(and(gte(activityUsage.date, start), lte(activityUsage.date, end)))
-    .groupBy(activityUsage.date, activityUsage.source)
-    .orderBy(activityUsage.date)
-    .all();
+    .groupBy(activityUsage.date, activityUsage.source, activityUsage.model)
+    .all().map((r) => {
+      const estCost = priceRecordedUsage(r.source, r.model, r, r.recorded);
+      const tokens = r.input + r.output + r.cacheRead + r.cacheWrite5m + r.cacheWrite1h;
+      return { ...r, estCost: estCost ?? 0, unpricedTokens: r.source === "grok" ? (estCost === null ? tokens : 0) : r.unpriced };
+    });
 }
 
-function getActivityModels(start: string, end: string): ActivityModel[] {
-  return db
-    .select({
-      model: activityUsage.model,
-      source: activityUsage.source,
-      days: sql<number>`COUNT(DISTINCT ${activityUsage.date})`,
-      lastUsed: sql<string>`MAX(${activityUsage.date})`,
-      tokens: sql<number | null>`CASE WHEN ${activityUsage.source} = 'grok' THEN NULLIF(SUM(${activityUsage.input} + ${activityUsage.output} + ${activityUsage.cacheRead} + ${activityUsage.cacheWrite5m}), 0) ELSE COALESCE(SUM(${activityUsage.input} + ${activityUsage.output}), 0) END`,
-      estCost: sql<number>`COALESCE(SUM(${activityUsage.estCostUsd}), 0)`,
-    })
-    .from(activityUsage)
-    .where(and(gte(activityUsage.date, start), lte(activityUsage.date, end), sql`${activityUsage.model} != 'unknown'`))
-    .groupBy(activityUsage.model, activityUsage.source)
-    .all();
+function rollupLocal(rows: ReturnType<typeof getLocalUsage>) {
+  const daily = new Map<string, ActivityDaily>();
+  const models = new Map<string, ActivityModel & { dates: Set<string> }>();
+  for (const r of rows) {
+    const key = `${r.date}|${r.source}`;
+    const d = daily.get(key) ?? { date: r.date, source: r.source, messages: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, estCost: 0, unpricedTokens: 0 };
+    d.messages += r.messages;
+    d.input += r.input;
+    d.output += r.output;
+    d.cacheRead += r.cacheRead;
+    d.cacheWrite += r.cacheWrite5m + r.cacheWrite1h;
+    d.estCost += r.estCost;
+    d.unpricedTokens += r.unpricedTokens;
+    daily.set(key, d);
+    if (r.model === "unknown") continue;
+    const modelKey = `${r.source}|${r.model}`;
+    const m = models.get(modelKey) ?? { source: r.source, model: r.model, days: 0, dates: new Set<string>(), lastUsed: r.date, tokens: 0, estCost: 0, unpricedTokens: 0 };
+    m.dates.add(r.date);
+    m.lastUsed = r.date > m.lastUsed ? r.date : m.lastUsed;
+    // Preserve the existing Claude/Codex model-token convention; Grok input
+    // excludes cached tokens, so include its cache columns explicitly.
+    m.tokens = (m.tokens ?? 0) + r.input + r.output + (r.source === "grok" ? r.cacheRead + r.cacheWrite5m + r.cacheWrite1h : 0);
+    m.estCost += r.estCost;
+    m.unpricedTokens = (m.unpricedTokens ?? 0) + r.unpricedTokens;
+    models.set(modelKey, m);
+  }
+  return {
+    daily: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    models: [...models.values()].map(({ dates, ...m }) => ({ ...m, days: dates.size, tokens: m.source === "grok" && m.tokens === 0 ? null : m.tokens })),
+  };
+}
+
+function getApiDaily(start: string, end: string): ApiActivityDaily[] {
+  return db.select({
+    date: costEntries.date,
+    source: costEntries.provider,
+    input: sql<number>`COALESCE(SUM(${costEntries.tokensIn}), 0)`,
+    output: sql<number>`COALESCE(SUM(${costEntries.tokensOut}), 0)`,
+    cost: sql<number>`COALESCE(SUM(${costEntries.costUsd}), 0)`,
+  }).from(costEntries)
+    .where(and(gte(costEntries.date, start), lte(costEntries.date, end)))
+    .groupBy(costEntries.date, costEntries.provider).orderBy(costEntries.date).all();
 }
 
 // API-provider models (OpenAI, xAI, Gemini, ...) already tracked in cost_entries, folded in
@@ -227,8 +267,10 @@ function getTotals(daily: ActivityDaily[], sessions: SessionsByDay[]): ActivityT
 }
 
 export function getActivity(start: string, end: string): ActivityResult {
-  const daily = getDailyUsage(start, end);
-  const models = [...getActivityModels(start, end), ...getProviderModels(start, end)].sort(
+  const local = rollupLocal(getLocalUsage(start, end));
+  const daily = local.daily;
+  const apiDaily = getApiDaily(start, end);
+  const models = [...local.models, ...getProviderModels(start, end)].sort(
     (a, b) => b.estCost - a.estCost
   );
   const tools = getToolsUsed(start, end);
@@ -236,5 +278,5 @@ export function getActivity(start: string, end: string): ActivityResult {
   const dataStart = getDataStart();
   const totals = getTotals(daily, sessions);
 
-  return { daily, models, tools, sessions, dataStart, totals };
+  return { daily, apiDaily, models, tools, sessions, dataStart, totals };
 }

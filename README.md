@@ -2,9 +2,13 @@
 
 Track AI API spending across OpenAI, Anthropic, xAI/Grok, Google Gemini, OpenRouter, fal.ai and BFL, subscription limits for Claude Desktop, ChatGPT Codex and Grok, and what you actually used in Claude Code, Codex, Grok and Grok Bot, in a single dashboard.
 
-Pulls actual billed amounts from each provider's billing API. No proxies, no estimations from token counts. Runs locally with SQLite storage.
+API spend uses actual billed amounts from each provider's billing API. Subscription API-equivalent values are separate estimates from recorded tokens. Runs locally with SQLite storage.
 
 ## What it does
+
+- **Three tabs** -- Subscriptions keeps quotas, This week and API-equivalent estimates together; API spend contains actual billing and sync history; Activity has a Subscriptions / API / Combined source toggle. Each view keeps its own date range while switching tabs. Tab links can be bookmarked using `#subscriptions`, `#api` and `#activity`.
+- **Grok at API prices** -- recorded Grok 4.5/4.6/4.7 tokens use the matching public model's standard short-context input/cache/output rates, including local `-build` labels. Rates verified October 22, 2026 at https://docs.x.ai/developers/pricing. Turn aggregates do not reveal each request's prompt length or speed tier, so long-context / Fast premiums and tool fees are excluded. Retained old rows are priced on read without reindexing. Grok Bot has message history only, so its equivalent is unavailable.
+- **Activity scope** -- the toggle filters models and summary totals. Combined output tokens include recorded local and API output; sessions and messages cover local history only. API activity charts only token counts actually reported by providers. Dollar estimates and billed charges are never added together. The message calendars always cover the last year; the range picker controls summaries, tools, API tokens and model details.
 
 - **Plan limits** -- Claude (Pro/Max), ChatGPT Codex and Grok as dials per window, with reset times, a pace notch and a straight-line projection ("runs out Thu 2 PM"), plus a burn-up chart of each weekly limit against even pace (needs the optional `history.jsonl` quota log in `~/.local/state/ai-usage/`)
 - **Spend summary** -- this month with daily bars and the change against last month at the same point, a month-end projection, last 30 days, this week, this year

@@ -58,7 +58,7 @@ export function ModelsUsed({ models }: { models: ActivityModel[] }) {
                 </td>
                 <td className="py-2 text-right tabular-nums">
                   {estimate && m.estCost === 0 ? (
-                    <span className="text-muted" title="No API list price on file for this model">
+                    <span className="text-muted" title="No priced token usage recorded for this model">
                       –
                     </span>
                   ) : (
@@ -75,7 +75,7 @@ export function ModelsUsed({ models }: { models: ActivityModel[] }) {
       </table>
       <div className="flex items-center justify-between gap-4 mt-3">
         <p className="text-xs text-muted">
-          ≈ marks Claude Code and Codex usage priced at API list rates. Your subscriptions cover it.
+          ≈ marks subscription activity at API prices; other amounts are billed API spend. Grok uses standard rates without long-context / Fast premiums or tool fees.
         </p>
         {models.length > SHOWN && (
           <button onClick={() => setAll(!all)} className="text-xs text-muted hover:text-foreground underline underline-offset-2">
