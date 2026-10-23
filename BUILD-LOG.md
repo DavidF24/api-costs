@@ -205,14 +205,19 @@ output tokens. Model tables follow the selected source. API token charts explain
 coverage gaps. Tabs support keyboard navigation and bookmarkable hashes; range and
 scope state survive tab switches and automatic refreshes.
 
-Validation in progress: all 68 tests and TypeScript pass. Full lint has zero errors
-and the existing OpenRouter unused-variable warning. Six synthetic tests cover
-Grok prices/cache handling, old NULL-price history, unknown models, Bot exclusion,
-source partitioning and separate billed/estimated totals. The production build passed. A fresh GPT-6-Astra reviewer marked 208fc0a Ready
-with no findings. Browser checks confirm all three tabs, API-only model filtering,
-range changes, keyboard navigation and preserved range/scope state. A read-only
-endpoint/database comparison confirms old Grok rows reprice correctly and API totals
-match billing records. The 320px check exposed an existing screen-reader-only weekly
-table extending the page width; wrap the table in a clipped sr-only div so assistive
-content stays available without causing horizontal page overflow. Correction recheck
-and final narrow-screen verification follow.
+Validation: all 68 tests, TypeScript and the production build pass. Full lint has
+zero errors and the existing OpenRouter unused-variable warning. Six synthetic
+tests cover Grok prices/cache handling, old NULL-price history, unknown models,
+Bot exclusion, source partitioning and separate billed/estimated totals. Browser
+checks confirm all three tabs, API-only model filtering, range changes, keyboard
+navigation and preserved range/scope state. A read-only endpoint/database comparison
+confirms old Grok rows reprice correctly and API totals match billing records.
+All three tabs fit a 320px viewport without horizontal page overflow. Keep the
+weekly accessibility table within a clipped sr-only parent and let the API headline
+and month bars wrap. The normal desktop layout was also verified.
+
+A fresh GPT-6-Astra reviewer marked implementation 208fc0a Ready, then independently
+rechecked corrections db38536 and dfe4419 as Ready, with no actionable findings.
+No credentials, Keychain items, live provider APIs or private user histories were
+accessed by the reviewer. Existing Node module-type and Turbopack tracing warnings
+remain. No new costs, CI changes or secret-file changes.
