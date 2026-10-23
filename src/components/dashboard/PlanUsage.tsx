@@ -7,7 +7,6 @@ import { formatClockTime, formatDuration, formatRelativeTime } from "@/lib/forma
 import { WeekTrend } from "./WeekTrend";
 
 const REFRESH_MS = 60_000;
-const STALE_MS = 6 * 60 * 60 * 1000;
 
 type Props = { initial: PlanUsageType[]; serverNow: number };
 
@@ -63,7 +62,7 @@ export function PlanUsage({ initial, serverNow }: Props) {
 
 function PlanGroup({ plan, now }: { plan: PlanUsageType; now: number }) {
   const updatedMs = plan.updatedAt ? new Date(plan.updatedAt).getTime() : null;
-  const stale = updatedMs !== null && now - updatedMs > STALE_MS;
+  const stale = updatedMs !== null && now - updatedMs > (plan.staleAfterMinutes ?? 360) * 60000;
 
   return (
     <article className="plan-group">
@@ -121,7 +120,7 @@ function Gauge({ window: reading, now }: { window: QuotaWindow; now: number }) {
   const notch = elapsed === null ? null : START_DEG + 360 * SWEEP * elapsed;
 
   const resetText = w.reset
-    ? "Reset. New usage shows after your next reply."
+    ? "Reset. Waiting for a fresh usage reading."
     : w.resetsAt !== null
       ? `Resets ${formatClockTime(w.resetsAt, nowSec)}, in ${formatDuration(w.resetsAt - nowSec)}`
       : null;

@@ -16,11 +16,12 @@ export type QuotaWindow = {
 export type TrendPoint = { at: number; used: number }; // epoch seconds, percent used
 
 export type PlanUsage = {
-  id: "claude" | "codex";
+  id: "claude" | "codex" | "grok" | "grokbot";
   name: string;
   status: "ok" | "missing" | "error";
   message?: string;
   note?: string;
+  staleAfterMinutes?: number;
   windows: QuotaWindow[];
   updatedAt: string | null; // newest reading across windows
 };

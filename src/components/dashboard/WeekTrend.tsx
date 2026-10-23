@@ -11,6 +11,8 @@ import { formatClockTime } from "@/lib/format";
 const SERIES: Record<string, { label: string; color: string }> = {
   claude: { label: "Claude Max", color: "var(--provider-anthropic)" },
   codex: { label: "ChatGPT Codex", color: "var(--provider-openai)" },
+  grok: { label: "Grok", color: "var(--provider-xai)" },
+  grokbot: { label: "Grok Bot", color: "var(--accent-blue)" },
 };
 
 const DAY = 86400;

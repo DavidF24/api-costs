@@ -15,7 +15,7 @@ import { getActivity } from "@/lib/activity/queries";
 // Don't cache -- always read fresh from SQLite and the local usage files
 export const dynamic = "force-dynamic";
 
-export default function Home() {
+export default async function Home() {
   // One clock read per request; everything downstream derives dates from it, so the
   // server HTML and the first client render agree.
   // eslint-disable-next-line react-hooks/purity -- server component, runs once per request
@@ -43,7 +43,7 @@ export default function Home() {
         models,
         syncStatuses: getSyncStatuses(),
         providerConfigured,
-        plans: getPlanUsage(),
+        plans: await getPlanUsage(),
         scheduler: getSchedulerState(),
         activityYear,
         activity,

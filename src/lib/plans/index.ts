@@ -1,4 +1,5 @@
 import { getClaudeUsage } from "./claude";
+import { getGrokUsage } from "./grok";
 import { getCodexUsage } from "./codex";
 import { withWeeklyTrends } from "./history";
 import type { PlanUsage } from "./parse";
@@ -20,9 +21,11 @@ function safely(id: PlanUsage["id"], name: string, read: () => PlanUsage): PlanU
   }
 }
 
-export function getPlanUsage(): PlanUsage[] {
+export async function getPlanUsage(): Promise<PlanUsage[]> {
+  const grok = await getGrokUsage();
   return withWeeklyTrends([
     safely("claude", "Claude Max", getClaudeUsage),
     safely("codex", "ChatGPT Codex", getCodexUsage),
+    grok,
   ]);
 }
