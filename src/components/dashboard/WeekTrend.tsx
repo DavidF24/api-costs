@@ -88,7 +88,7 @@ export function WeekTrend({ plans, now }: { plans: PlanUsage[]; now: number }) {
             <line x1={M.left} x2={M.left + plotW} y1={y(pct)} y2={y(pct)} stroke="var(--card-border)" />
             <text x={M.left - 8} y={y(pct) + 4} textAnchor="end" className="fill-muted text-[11px] tabular-nums">{pct}%</text>
           </g>)}
-          {Array.from({ length: WEEK_DAYS }, (_, d) => <text key={d} x={x(d + 0.5)} y={HEIGHT - 6} textAnchor="middle" className="fill-muted text-[11px]">Day {d + 1}</text>)}
+          {Array.from({ length: WEEK_DAYS }, (_, d) => <text key={d} x={x(d + 0.5)} y={HEIGHT - 6} textAnchor="middle" className="fill-muted text-[11px]">{width < 400 ? d + 1 : `Day ${d + 1}`}</text>)}
           <line x1={x(0)} y1={y(0)} x2={x(7)} y2={y(100)} stroke="var(--spark)" strokeWidth={1.25} />
 
           {/* Draw statistical lines first so recorded observations stay in front. */}

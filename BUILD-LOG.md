@@ -270,4 +270,19 @@ and preserve later provider corrections. Average pace uses cumulative usage sinc
 reset at that timestamp; a moving browser clock does not create readings. Add
 coverage details and keyboard inspection. Quota storage and billing are unchanged.
 
-Validation pending.
+Validation: all 85 tests, TypeScript and production build pass. Full ESLint has
+zero errors and the existing OpenRouter unused-variable warning. Eight synthetic
+regressions cover gaps, true zeroes, provider corrections, jittered reset times,
+step geometry, stable forecasts, independent reset axes and dense weekly history.
+The SVG marker count is bounded while the path retains every sample. Geometry is
+memoized during hover. Browser checks confirm all four recorded paths, average
+line toggle, unknown-history and forecast tooltips, keyboard inspection and the
+coverage table. The 320px layout has no horizontal page overflow; the coverage
+table scrolls inside its container. Sparse live history remains short measured
+segments; no synthetic usage was inserted into the preview database.
+
+A fresh GPT-6-Astra reviewer marked 24e9999 Ready with no remaining actionable
+findings after checking dense-history rendering and subsecond reset precision.
+No credentials, live dashboards or private histories were accessed by the reviewer.
+The preview uses a private SQLite copy without billing credentials and disables
+both background schedulers. No CI or secret files change; no new cost.
