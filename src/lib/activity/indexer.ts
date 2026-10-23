@@ -1,4 +1,4 @@
-// Walks ~/.claude/projects, ~/.claude-ss/projects and ~/.codex/sessions, streams any file
+// Walks local Claude Code, Codex, Grok and Grok Bot history, reading any file
 // whose (size, mtime) changed since the last run, and replaces that file's rows in the
 // activity_* tables in one transaction. Never deletes rows for files that have since
 // disappeared from disk (Claude Code prunes old transcripts; history must survive that).
@@ -13,6 +13,8 @@ import { toEasternDate } from "@/lib/timezone";
 import { createClaudeAccumulator, type ClaudeFinishResult } from "./claude-parse";
 import { createCodexAccumulator, type CodexFinishResult } from "./codex-parse";
 import { estimateCost } from "./pricing";
+import { createGrokAccumulator, parseGrokBotTranscript } from "./grok-parse";
+import { listGrokFiles, streamGrokLines } from "./grok-files";
 
 export type IndexResult = {
   filesSeen: number;
@@ -25,13 +27,15 @@ export type IndexResult = {
 export type IndexOptions = {
   claudeProjectsDirs?: string[];
   codexHome?: string;
+  grokHome?: string;
+  grokBotPersistenceDir?: string;
 };
 
-type Source = "claude-code" | "codex";
+type Source = "claude-code" | "codex" | "grok" | "grok-bot";
 // `path` is where the file is read from. `key` identifies it in the activity tables: the path
 // relative to its log root, so the same transcript found under another configured root (or
 // after a move) replaces its rows instead of being counted twice.
-type FileEntry = { path: string; key: string; source: Source; isSubagent: boolean };
+type FileEntry = { path: string; key: string; source: Source; isSubagent: boolean; sessionId?: string; project?: string };
 
 const toDate = (iso: string): string => toEasternDate(new Date(iso));
 
@@ -137,6 +141,15 @@ async function parseFile(entry: FileEntry): Promise<ClaudeFinishResult | CodexFi
     await streamLines(entry.path, acc.line);
     return acc.finish(toDate);
   }
+  if (entry.source === "grok") {
+    const acc = createGrokAccumulator(entry.sessionId!, entry.project!, toDate);
+    await streamGrokLines(entry.path, acc.line);
+    return acc.finish();
+  }
+  if (entry.source === "grok-bot") {
+    if (statSync(entry.path).size > 16 * 1024 * 1024) throw new Error("Grok Bot transcript exceeds size limit");
+    return parseGrokBotTranscript(readFileSync(entry.path, "utf8"), entry.sessionId!, toDate);
+  }
   const acc = createCodexAccumulator();
   await streamLines(entry.path, acc.line);
   return acc.finish(toDate);
@@ -160,7 +173,7 @@ function writeFileRows(
     tx.delete(schema.activitySessions).where(eq(schema.activitySessions.path, entry.key)).run();
 
     for (const u of result.usage) {
-      const estCostUsd = estimateCost(u.model, u);
+      const estCostUsd = entry.source === "grok" || entry.source === "grok-bot" ? null : estimateCost(u.model, u);
       tx.insert(schema.activityUsage)
         .values({
           path: entry.key,
@@ -227,6 +240,10 @@ async function runIndexActivity(opts?: IndexOptions): Promise<IndexResult> {
   const files: FileEntry[] = [];
   for (const root of claudeRoots(opts)) files.push(...listClaudeFiles(root));
   files.push(...listCodexFiles(codexSessionsRoot(opts)));
+  files.push(...listGrokFiles(
+    join(opts?.grokHome ?? process.env.GROK_HOME ?? join(homedir(), ".grok"), "sessions"),
+    opts?.grokBotPersistenceDir ?? process.env.GROK_BOT_PERSISTENCE_DIR ?? join(homedir(), "Library", "Application Support", "Grok Bot", "sand-client-persistence")
+  ));
 
   const existing = new Map<string, { size: number; mtimeMs: number }>();
   for (const row of db

@@ -101,10 +101,12 @@ export function formatInt(n: number): string {
 export function getSourceLabel(source: string): string {
   if (source === "claude-code") return "Claude Code";
   if (source === "codex") return "Codex";
+  if (source === "grok") return "Grok";
+  if (source === "grok-bot") return "Grok Bot";
   return getProviderLabel(source);
 }
 
-// Claude Code and Codex run on subscriptions, so their dollar figures are estimates at API list prices
+// Local assistant activity runs on subscriptions; known list prices are estimates.
 export function isSubscriptionSource(source: string): boolean {
-  return source === "claude-code" || source === "codex";
+  return source === "claude-code" || source === "codex" || source === "grok" || source === "grok-bot";
 }

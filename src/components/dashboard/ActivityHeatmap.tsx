@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { ActivityDaily, SessionsByDay } from "@/lib/activity/queries";
+import type { ActivityDaily, SessionsByDay, ActivityResult } from "@/lib/activity/queries";
 import { formatCurrency, formatInt } from "@/lib/format";
 import { shiftDate } from "@/lib/timezone";
 
@@ -9,7 +9,7 @@ type Props = {
   daily: ActivityDaily[];
   sessions: SessionsByDay[];
   today: string; // YYYY-MM-DD, Eastern
-  dataStart: { claude: string | null; codex: string | null }; // earliest day with indexed usage
+  dataStart: ActivityResult["dataStart"]; // earliest day with indexed usage
 };
 
 type Day = { date: string; messages: number; sessions: number; estCost: number };
@@ -21,13 +21,27 @@ type Day = { date: string; messages: number; sessions: number; estCost: number }
 const SOURCES = [
   {
     key: "claude-code",
+    startKey: "claude",
     label: "Claude Code",
     levels: ["var(--meter-track)", "#f5d7c9", "#e9aa8d", "#ca744c", "#9c4326"],
   },
   {
     key: "codex",
+    startKey: "codex",
     label: "Codex",
     levels: ["var(--meter-track)", "#cfe9dd", "#91c8ae", "#469675", "#166747"],
+  },
+  {
+    key: "grok",
+    startKey: "grok",
+    label: "Grok",
+    levels: ["var(--meter-track)", "#e3dcf4", "#bfb0e4", "#8a72c5", "#55408f"],
+  },
+  {
+    key: "grok-bot",
+    startKey: "grokBot",
+    label: "Grok Bot",
+    levels: ["var(--meter-track)", "#d7e7f7", "#9ebfe5", "#558dc7", "#225b95"],
   },
 ] as const;
 
@@ -97,7 +111,7 @@ export function ActivityHeatmap({ daily, sessions, today, dataStart }: Props) {
     // Codex logs before Sep 2026 carry sessions but no per-message usage; show those days as active
     const dayLevel = (day?: Day) => (!day ? 0 : day.messages > 0 ? level(day.messages) : day.sessions > 0 ? 1 : 0);
 
-    const usageStart = source.key === "codex" ? dataStart.codex : dataStart.claude;
+    const usageStart = dataStart[source.startKey];
     const start = [usageStart, firstSession].filter((d): d is string => !!d).sort()[0] ?? null;
     const total = active.reduce((a, b) => a + b, 0);
     const busiest = [...byDate.values()].sort((a, b) => b.messages - a.messages)[0];
@@ -115,8 +129,8 @@ export function ActivityHeatmap({ daily, sessions, today, dataStart }: Props) {
     .join(" ");
 
   return (
-    <div className="relative">
-      <svg width={width} height={height} role="img" aria-label={`Messages per day over the last year. ${label}`} className="block max-w-full">
+    <div className="relative overflow-x-auto">
+      <svg width={width} height={height} role="img" aria-label={`Messages per day over the last year. ${label}`} className="block">
         {months.map((m) => (
           <text key={m.col} x={LEFT + m.col * PITCH} y={11} className="fill-muted text-[11px]">
             {m.label}
@@ -199,7 +213,7 @@ export function ActivityHeatmap({ daily, sessions, today, dataStart }: Props) {
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-4 mt-2 text-xs text-muted" aria-hidden>
+      <div className="flex items-center justify-end flex-wrap gap-4 mt-2 text-xs text-muted" aria-hidden>
         <span>Less</span>
         {SOURCES.map((s) => (
           <span key={s.key} className="flex items-center gap-1.5">

@@ -57,7 +57,7 @@ export function ActivitySection({ year, initial, today, serverNow }: Props) {
     ? [
         { label: "Sessions", value: formatInt(data.totals.sessions) },
         { label: "Messages", value: formatInt(data.totals.messages) },
-        { label: "Output tokens", value: formatCompact(data.totals.output) },
+        { label: "Recorded output tokens", value: formatCompact(data.totals.output) },
         { label: "Claude Code at API prices", value: `≈ ${formatCurrency(bySource["claude-code"])}` },
         { label: "Codex at API prices", value: `≈ ${formatCurrency(bySource.codex)}` },
       ]
@@ -71,7 +71,7 @@ export function ActivitySection({ year, initial, today, serverNow }: Props) {
             Activity
           </h2>
           <p className="text-xs text-muted mt-0.5">
-            Claude Code and Codex on this Mac, plus every API model.
+            Claude Code, Codex, Grok and Grok Bot on this Mac, plus every API model.
             {start ? ` Claude Code history starts ${monthDay.format(new Date(`${start}T12:00:00Z`))}.` : ""}
           </p>
         </div>
@@ -91,6 +91,7 @@ export function ActivitySection({ year, initial, today, serverNow }: Props) {
 
       <div className="bg-card border border-card-border rounded-xl p-4 sm:p-5">
         <h3 className="text-sm font-medium mb-3">Messages per day, last 12 months</h3>
+        <p className="text-xs text-muted mb-4">Automatic local history. Grok and Grok Bot share a subscription; their activity is shown separately below. Grok Bot provides message history, without token counts or API cost estimates.</p>
         <ActivityHeatmap daily={year.daily} sessions={year.sessions} today={today} dataStart={year.dataStart} />
       </div>
 

@@ -53,7 +53,7 @@ export type ActivityResult = {
   models: ActivityModel[];
   tools: ActivityToolsSummary;
   sessions: SessionsByDay[];
-  dataStart: { claude: string | null; codex: string | null };
+  dataStart: { claude: string | null; codex: string | null; grok: string | null; grokBot: string | null };
   totals: ActivityTotals;
 };
 
@@ -83,11 +83,11 @@ function getActivityModels(start: string, end: string): ActivityModel[] {
       source: activityUsage.source,
       days: sql<number>`COUNT(DISTINCT ${activityUsage.date})`,
       lastUsed: sql<string>`MAX(${activityUsage.date})`,
-      tokens: sql<number>`COALESCE(SUM(${activityUsage.input} + ${activityUsage.output}), 0)`,
+      tokens: sql<number | null>`CASE WHEN ${activityUsage.source} = 'grok' THEN NULLIF(SUM(${activityUsage.input} + ${activityUsage.output} + ${activityUsage.cacheRead} + ${activityUsage.cacheWrite5m}), 0) ELSE COALESCE(SUM(${activityUsage.input} + ${activityUsage.output}), 0) END`,
       estCost: sql<number>`COALESCE(SUM(${activityUsage.estCostUsd}), 0)`,
     })
     .from(activityUsage)
-    .where(and(gte(activityUsage.date, start), lte(activityUsage.date, end)))
+    .where(and(gte(activityUsage.date, start), lte(activityUsage.date, end), sql`${activityUsage.model} != 'unknown'`))
     .groupBy(activityUsage.model, activityUsage.source)
     .all();
 }
@@ -195,7 +195,7 @@ function getSessionsByDay(start: string, end: string): SessionsByDay[] {
   return [...counts.values()].sort((a, b) => a.date.localeCompare(b.date) || a.source.localeCompare(b.source));
 }
 
-function getDataStart(): { claude: string | null; codex: string | null } {
+function getDataStart(): ActivityResult["dataStart"] {
   const rows = db
     .select({ source: activityUsage.source, minDate: sql<string>`MIN(${activityUsage.date})` })
     .from(activityUsage)
@@ -205,6 +205,8 @@ function getDataStart(): { claude: string | null; codex: string | null } {
   return {
     claude: bySource.get("claude-code") ?? null,
     codex: bySource.get("codex") ?? null,
+    grok: bySource.get("grok") ?? null,
+    grokBot: bySource.get("grok-bot") ?? null,
   };
 }
 

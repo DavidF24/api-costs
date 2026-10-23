@@ -1,6 +1,6 @@
 # AI Usage Dashboard
 
-Track AI API spending across OpenAI, Anthropic, xAI/Grok, Google Gemini, OpenRouter, fal.ai and BFL, subscription limits for Claude Desktop, ChatGPT Codex and Grok, and what you actually used in Claude Code and Codex (tools, skills, subagents, models), in a single dashboard.
+Track AI API spending across OpenAI, Anthropic, xAI/Grok, Google Gemini, OpenRouter, fal.ai and BFL, subscription limits for Claude Desktop, ChatGPT Codex and Grok, and what you actually used in Claude Code, Codex, Grok and Grok Bot, in a single dashboard.
 
 Pulls actual billed amounts from each provider's billing API. No proxies, no estimations from token counts. Runs locally with SQLite storage.
 
@@ -8,7 +8,7 @@ Pulls actual billed amounts from each provider's billing API. No proxies, no est
 
 - **Plan limits** -- Claude (Pro/Max), ChatGPT Codex and Grok as dials per window, with reset times, a pace notch and a straight-line projection ("runs out Thu 2 PM"), plus a burn-up chart of each weekly limit against even pace (needs the optional `history.jsonl` quota log in `~/.local/state/ai-usage/`)
 - **Spend summary** -- this month with daily bars and the change against last month at the same point, a month-end projection, last 30 days, this week, this year
-- **Activity** -- from the Claude Code and Codex logs on this machine: sessions, messages, a 12-month heatmap per tool (Claude Code and Codex, each on its own scale), MCP servers (with per-tool counts), skills, subagents and built-in tools, and every model used with tokens and its cost at API list prices
+- **Activity** -- from local Claude Code, Codex, Grok and Grok Bot history on this machine: sessions, messages, a 12-month heatmap per tool (Claude Code, Codex, Grok and Grok Bot, each on its own scale), MCP servers (with per-tool counts), skills, subagents and built-in tools, and every model used with tokens and its cost at API list prices
 - **Auto-sync** -- the server syncs every provider, refreshes quotas and indexes local logs every 30 minutes (`AUTO_SYNC_MINUTES`, 0 turns it off); the page refreshes itself every 2 minutes
 - **Spend chart** -- stacked bars by provider; daily for 7/30/90 days, weekly for 1 year
 - **Provider breakdown** -- dollars and share per provider for the selected range
@@ -104,12 +104,30 @@ Source references: [Chromium cache format](https://chromium.googlesource.com/chr
 The implementation uses the documented format and protocol facts; it does not
 bundle or execute those projects.
 
-## Activity (local Claude Code and Codex logs)
+## Activity (automatic local history)
 
 The scheduler indexes `~/.claude/projects` and `~/.claude-ss/projects` (override with
 `CLAUDE_PROJECTS_DIRS`, colon-separated) and `$CODEX_HOME/sessions` into local SQLite tables.
 Only changed files are re-read. Rows stay after Claude Code prunes old transcripts, so history
 accumulates from the first run. Nothing leaves the machine.
+
+Grok activity is indexed from `$GROK_HOME/sessions/<project>/<session>/updates.jsonl`
+(default `~/.grok`). Assistant streaming chunks are deduplicated by prompt and stream
+start; per-turn model token breakdowns are counted once. User messages, reasoning
+chunks, tool notifications and cumulative session counters do not inflate messages.
+Grok Bot activity is indexed from account-scoped transcript replicas in
+`~/Library/Application Support/Grok Bot/sand-client-persistence` (override with
+`GROK_BOT_PERSISTENCE_DIR`). Text replies and assistant voice turns count once, using
+their recorded timestamps. Widgets, approvals, attachments and user messages do not.
+Grok and Grok Bot are adjacent heatmaps, with independent color scales, under their
+shared subscription. Bot history contains no model/token/cost data, so those values
+are not estimated. Grok tokens are available only for recorded completed turns;
+Grok model costs remain unpriced. Output-token totals cover recorded sources only.
+No credentials, Keychain access or network calls are needed for either activity
+reader. Only aggregate metadata is stored in SQLite, never transcript text. Logs
+pruned before the first index cannot be recovered. Unrecognized/corrupt snapshots
+retain the prior indexed history and are retried on the next sync. Click **Sync now**
+for an immediate index, or use local-only `POST /api/activity/index`.
 
 Costs for Claude Code and Codex are estimates at API list prices (`src/lib/activity/pricing.ts`);
 unpriced models show no cost. Claude Code logs usage per message; Codex logs it only since
