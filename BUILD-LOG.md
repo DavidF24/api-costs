@@ -92,7 +92,7 @@ percentage is zero; malformed, inactive and missing responses remain unavailable
 No coding agent is launched and no login token is refreshed or persisted. Requests
 are bounded, deduplicated and throttled to once per minute.
 
-Validation: all 47 tests passed, including synthetic compressed Chromium entries,
+Validation: all 48 tests passed, including synthetic compressed Chromium entries,
 checksum/key mismatch and stale/future rejection, reset handling, complete proto3
 zero, nonzero percentages, truncated/error frames, inactive periods, and separate
 Bot allowance parsing. Targeted ESLint, TypeScript and the production build passed.
@@ -104,4 +104,4 @@ printed or saved. Added a Refresh usage control; automatic reads continue each m
 Initial independent review found malformed-date acceptance and optional network reads
 delaying the initial page. Corrections reject non-finite period bounds and keep
 initial rendering synchronous with local/cached readings. The client refreshes
-network-backed usage immediately after mount. Correction review pending.
+network-backed usage immediately after mount. A fresh GPT-6-Astra reviewer rechecked both corrections at e3152e1 and marked the implementation Ready with no remaining actionable findings.
