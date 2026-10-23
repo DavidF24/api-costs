@@ -359,3 +359,25 @@ For a readiness check without opening a browser, run
 ## License
 
 MIT
+
+## Recorded weekly quota chart
+
+The Subscriptions chart uses real saved quota samples from the current reset
+period. Solid steps and dots join sampled percentages; changes can occur between
+samples. It starts at the first recorded reading, with no invented zero at reset
+and no solid continuation after the latest sample. Provider corrections may make
+the recorded line dip. Earlier unobserved usage cannot be reconstructed from
+subscription token totals because the providers use their own quota accounting.
+
+A lighter dashed line shows average pace (cumulative percentage divided by time
+since reset at the latest reading); a dotted continuation forecasts that pace
+until reset or 100%. The grey diagonal is the reference for evenly consuming the
+weekly allowance. Average pace can be hidden. Hover or use left/right arrow keys
+on the chart to inspect recorded timestamps and forecasts. Reading coverage and
+forecast lists each plan's first/latest timestamp and sample count. The x-axis
+compares days into each plan's own week, rather than shared calendar dates.
+
+Newly collected history may initially be a single point or a short flat segment.
+The curve gains detail as new percentages are saved; past usage is not backfilled
+with estimates. Missing, reset or unavailable current windows do not show a quota
+forecast.

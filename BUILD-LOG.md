@@ -258,3 +258,16 @@ The correction recheck was Ready with no remaining actionable findings. The revi
 also independently verified startup timing, five-minute scheduling, overlapping
 ticks, backup after refresh failure and recovery using synthetic integration tests.
 The reviewer accessed no credentials, Keychain, live provider APIs or private data.
+
+# Plot recorded subscription usage
+
+Assignment: Codex · "Set up api-costs spend tracker" · 01a16549-f1da-7070-8cdc-4c1e96056b2a
+
+Replace the assumed zero-at-reset origin with recorded quota samples. Show sampled
+steps and dots, a separate average-pace line and a dotted forecast. Keep gaps
+before the first sample unknown, stop the recorded line at its last timestamp,
+and preserve later provider corrections. Average pace uses cumulative usage since
+reset at that timestamp; a moving browser clock does not create readings. Add
+coverage details and keyboard inspection. Quota storage and billing are unchanged.
+
+Validation pending.

@@ -164,38 +164,27 @@ export function aiQuotaCodexWindows(state: AiQuotaCodexState, nowSec: number): Q
 
 type HistoryRow = { at?: unknown; provider?: unknown; minutes?: unknown; resets_at?: unknown; used?: unknown };
 
-// The readings that belong to window `w`: same provider and length, taken inside the window,
-// reporting (within an hour) the same reset. Starts at 0% when the window opened and ends at
-// the window's own current reading. Usage only rises inside a window, so a lower reading
-// after a higher one is a stale re-send and is dropped.
-export function windowTrend(jsonl: string, provider: string, w: QuotaWindow): TrendPoint[] {
-  if (w.resetsAt === null || w.reset) return [];
+// Only recorded readings in this exact reset period. Do not infer a zero at reset,
+// interpolate missing history, or discard a later provider correction.
+export function windowTrend(jsonl: string, provider: string, w: QuotaWindow, nowSec = Date.now() / 1000): TrendPoint[] {
+  if (w.resetsAt === null || !Number.isFinite(w.resetsAt) || w.reset) return [];
   const start = w.resetsAt - w.windowMinutes * 60;
-  const points: TrendPoint[] = [];
+  const points = new Map<number, TrendPoint>();
+  const add = (at: number, used: number) => {
+    if (!Number.isFinite(at) || !Number.isFinite(used) || at < start ||
+        at >= w.resetsAt! || at > nowSec || used < 0 || used > 100) return;
+    points.set(at, { at, used });
+  };
   for (const line of jsonl.split("\n")) {
     if (!line.includes(provider)) continue;
-    let r: HistoryRow;
-    try {
-      r = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (r.provider !== provider || r.minutes !== w.windowMinutes) continue;
-    if (typeof r.at !== "number" || typeof r.used !== "number" || typeof r.resets_at !== "number") continue;
-    if (r.at < start || r.at > w.resetsAt || Math.abs(r.resets_at - w.resetsAt) > 3600) continue;
-    points.push({ at: r.at, used: r.used });
+    let r: HistoryRow | null;
+    try { r = JSON.parse(line); } catch { continue; }
+    if (!r || r.provider !== provider || r.minutes !== w.windowMinutes || r.resets_at !== w.resetsAt) continue;
+    if (typeof r.at === "number" && typeof r.used === "number") add(r.at, r.used);
   }
-  const current = w.updatedAt ? Date.parse(w.updatedAt) / 1000 : null;
-  if (current !== null && w.usedPercent !== null && current >= start) points.push({ at: current, used: w.usedPercent });
-  points.sort((a, b) => a.at - b.at);
-
-  const trend: TrendPoint[] = [{ at: start, used: 0 }];
-  for (const p of points) {
-    const last = trend.at(-1)!;
-    if (p.at === last.at || p.used < last.used) continue;
-    trend.push(p);
-  }
-  return trend;
+  // Prefer the current reading when a timestamp is present in both sources.
+  if (w.updatedAt && w.usedPercent !== null) add(Date.parse(w.updatedAt) / 1000, w.usedPercent);
+  return [...points.values()].sort((a, b) => a.at - b.at);
 }
 
 // --- Claude --------------------------------------------------------------
