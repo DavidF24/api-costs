@@ -31,6 +31,7 @@ type CacheEntry = { until: number; promise: Promise<PlanUsage> };
 const globalCache = globalThis as typeof globalThis & { subscriptionReadings?: Map<string, CacheEntry> };
 export function cachedQuota(key: string, load: () => Promise<PlanUsage>): Promise<PlanUsage> {
   const cache = globalCache.subscriptionReadings ??= new Map();
+  for (const [oldKey, entry] of cache) if (entry.until <= Date.now()) cache.delete(oldKey);
   const current = cache.get(key);
   if (current && current.until > Date.now()) return current.promise;
   const promise = load(); cache.set(key, { until: Date.now() + 60000, promise });

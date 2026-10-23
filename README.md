@@ -1,12 +1,12 @@
 # AI Usage Dashboard
 
-Track AI API spending across OpenAI, Anthropic, xAI/Grok, Google Gemini, OpenRouter, fal.ai and BFL, subscription limits for Claude and ChatGPT Codex, and what you actually used in Claude Code and Codex (tools, skills, subagents, models), in a single dashboard.
+Track AI API spending across OpenAI, Anthropic, xAI/Grok, Google Gemini, OpenRouter, fal.ai and BFL, subscription limits for Claude Desktop, ChatGPT Codex and Grok, and what you actually used in Claude Code and Codex (tools, skills, subagents, models), in a single dashboard.
 
 Pulls actual billed amounts from each provider's billing API. No proxies, no estimations from token counts. Runs locally with SQLite storage.
 
 ## What it does
 
-- **Plan limits** -- Claude (Pro/Max) and ChatGPT Codex as dials per window, with reset times, a pace notch and a straight-line projection ("runs out Thu 2 PM"), plus a burn-up chart of each weekly limit against even pace (needs the optional `history.jsonl` quota log in `~/.local/state/ai-usage/`)
+- **Plan limits** -- Claude (Pro/Max), ChatGPT Codex and Grok as dials per window, with reset times, a pace notch and a straight-line projection ("runs out Thu 2 PM"), plus a burn-up chart of each weekly limit against even pace (needs the optional `history.jsonl` quota log in `~/.local/state/ai-usage/`)
 - **Spend summary** -- this month with daily bars and the change against last month at the same point, a month-end projection, last 30 days, this week, this year
 - **Activity** -- from the Claude Code and Codex logs on this machine: sessions, messages, a 12-month heatmap per tool (Claude Code and Codex, each on its own scale), MCP servers (with per-tool counts), skills, subagents and built-in tools, and every model used with tokens and its cost at API list prices
 - **Auto-sync** -- the server syncs every provider, refreshes quotas and indexes local logs every 30 minutes (`AUTO_SYNC_MINUTES`, 0 turns it off); the page refreshes itself every 2 minutes
@@ -43,7 +43,7 @@ npm run dev
 # Open http://localhost:4100
 ```
 
-## Plan limits (Claude and ChatGPT Codex subscriptions)
+## Plan limits (Claude, ChatGPT Codex and Grok subscriptions)
 
 Subscription usage is quota, not dollars, so it gets its own panel: percent used per
 window, when the window resets, and a notch showing how much of the window has passed.
@@ -62,17 +62,33 @@ for each `CLAUDE_CONFIG_DIR` you use):
 ```
 
 Requires `jq`. The status line also prints model, context used and both plan percentages.
-Claude capture requires an interactive Claude Code terminal session using that status line.
-Claude desktop Code replies do not run this reader, so desktop-only activity will not
-populate its plan gauges. Local Claude activity logs still populate the Activity panel.
-Codex quota readings come from its local session logs or an existing quota probe.
-Account usage from other surfaces appears when the corresponding local source records
-a new reading. Model-specific weekly limits and credit balances are not in either source.
+Claude Desktop is automatic on macOS: the dashboard reads one exact local HTTP cache
+response for the organization in `~/Library/Application Support/Claude/plan-usage-history.json`.
+It uses the provider's actual five-hour and weekly utilization, observation time and
+reset dates. No Claude credentials, cookies or Keychain access are needed. Keep
+Claude Desktop open; opening Settings → Usage can refresh its cache. Readings older
+than 30 minutes are marked, and readings older than two hours are hidden. Chromium
+Simple cache v5 is supported, including Zstandard responses (Node 22.15+ required).
+The newest Desktop or terminal reading wins. Desktop activity logs are separate from
+these quota readings.
 
-Grok subscription quotas are not integrated. The xAI / Grok provider reports API billing
-only; its management key does not supply SuperGrok subscription allowance readings.
+Grok subscription usage is read from the billing service with the existing
+`~/.grok/auth.json` user login. It does not use the xAI management API key, launch an
+agent, refresh a login token, or write credentials. If the login expires, sign in
+again with the Grok CLI. Missing, malformed or unavailable data stays unavailable;
+a verified complete active protobuf billing period can report proto3's implicit 0%.
+Grok's subscription pool is separate from Grok Bot's weekly allowance.
 
-`npm test` runs the parser and status line tests.
+Plan readings refresh every minute while the dashboard is open, also on window
+focus. Concurrent Grok reads are shared and network requests are limited to one
+refresh per minute. Provider resets always come from the source. After a reset,
+old usage is unknown until another reading arrives. API billing sync is separate.
+
+Source references: [Chromium cache format](https://chromium.googlesource.com/chromium/src/+/main/net/disk_cache/simple/simple_entry_format.h),
+[community Claude Desktop cache approach](https://github.com/aqua5230/usage), and
+[CodexBar Grok billing protocol](https://github.com/steipete/CodexBar/blob/main/docs/grok.md).
+The implementation uses the documented format and protocol facts; it does not
+bundle or execute those projects.
 
 ## Activity (local Claude Code and Codex logs)
 

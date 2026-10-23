@@ -92,4 +92,13 @@ percentage is zero; malformed, inactive and missing responses remain unavailable
 No coding agent is launched and no login token is refreshed or persisted. Requests
 are bounded, deduplicated and throttled to once per minute.
 
-Validation and independent review pending.
+Validation: all 47 tests passed, including synthetic compressed Chromium entries,
+checksum/key mismatch and stale/future rejection, reset handling, complete proto3
+zero, nonzero percentages, truncated/error frames, inactive periods, and separate
+Bot allowance parsing. Targeted ESLint, TypeScript and the production build passed.
+The existing Turbopack filesystem-tracing and Node module-type warnings remain.
+Live read-only probes returned Claude Desktop 33% session / 61% weekly, and Grok
+0% weekly, with provider reset times; no credentials or raw private responses were
+printed or saved. Added a Refresh usage control; automatic reads continue each minute.
+
+Independent review pending.
