@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { windowTrend, type PlanUsage, type TrendPoint } from "../src/lib/plans/parse.ts";
-import { DAY, weeklySeries, weeklyValueAt, recordedStepPath, sampleMarkers } from "../src/lib/plans/week-trend.ts";
+import { DAY, weeklySeries, weeklyValueAt, recordedLinePath, sampleMarkers, recordedDomain, recordedValueAt } from "../src/lib/plans/week-trend.ts";
 
 const start = 1_000_000;
 const end = start + 7 * DAY;
@@ -32,11 +32,11 @@ test("a real zero at reset is retained, and current reading wins a duplicate tim
   assert.deepEqual(windowTrend(text, "grok", w, start + 2 * DAY), [{ at: start, used: 0 }, { at: start + DAY, used: 7 }]);
 });
 
-test("step geometry starts at the first sample and stops at the last", () => {
+test("line geometry shows flat periods and usage slopes between real samples", () => {
   const points = [{ at: 2, used: 10 }, { at: 3, used: 10 }, { at: 5, used: 35 }, { at: 6, used: 30 }];
-  assert.equal(recordedStepPath(points, (x) => x * 10, (y) => 100 - y), "M20,90 H30V90 H50V65 H60V70");
-  assert.equal(recordedStepPath([points[0]], (x) => x, (y) => y), "M2,10");
-  assert.equal(recordedStepPath([], (x) => x, (y) => y), "");
+  assert.equal(recordedLinePath(points, (x) => x * 10, (y) => 100 - y), "M20,90 L30,90 L50,65 L60,70");
+  assert.equal(recordedLinePath([points[0]], (x) => x, (y) => y), "M2,10");
+  assert.equal(recordedLinePath([], (x) => x, (y) => y), "");
 });
 
 test("average forecast uses the latest sample time and never fabricates browser-clock readings", () => {
@@ -91,6 +91,29 @@ test("dense histories retain all path samples while bounding SVG markers", () =>
   assert.ok(markers.length <= 120);
   assert.equal(markers[0], points[0]);
   assert.equal(markers.at(-1), points.at(-1));
-  const path = recordedStepPath(points, (x) => x, (y) => y);
-  assert.equal((path.match(/V/g) ?? []).length, 10079);
+  const path = recordedLinePath(points, (x) => x, (y) => y);
+  assert.equal((path.match(/L/g) ?? []).length, 10079);
+});
+
+test("calendar detail domain fits collected time across different reset dates", () => {
+  const a = plan([{ at: start + DAY, used: 10 }, { at: start + DAY + 600, used: 20 }]);
+  const b = plan([{ at: start + DAY + 120, used: 5 }, { at: start + DAY + 900, used: 5 }], "codex");
+  b.windows[0].resetsAt = end + DAY / 2;
+  const all = weeklySeries([a, b], start + 2 * DAY);
+  assert.deepEqual(recordedDomain(all, start + 2 * DAY), { from: start + DAY - 36, to: start + DAY + 936 });
+  const d = recordedDomain(all, start + 3 * DAY);
+  assert.equal(d.to - d.from, 972); // does not spread 15 minutes across seven days
+});
+
+test("calendar detail handles a lone observation and an empty archive", () => {
+  const all = weeklySeries([plan([{ at: start + DAY, used: 10 }])], start + 2 * DAY);
+  assert.deepEqual(recordedDomain(all, start + 2 * DAY), { from: start + DAY - 30, to: start + DAY + 30 });
+  assert.deepEqual(recordedDomain([], 123), { from: 63, to: 183 });
+});
+
+test("recorded tooltip values stay real and never interpolate or forecast", () => {
+  const [s] = weeklySeries([plan([{ at: start + DAY, used: 10 }, { at: start + 2 * DAY, used: 50 }])], start + 3 * DAY);
+  assert.deepEqual(recordedValueAt(s, start + 1.5 * DAY), { at: start + DAY, used: 10, kind: "recorded" });
+  assert.equal(recordedValueAt(s, start + 3 * DAY), null);
+  assert.equal(recordedValueAt(s, start), null);
 });

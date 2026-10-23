@@ -286,3 +286,17 @@ findings after checking dense-history rendering and subsecond reset precision.
 No credentials, live dashboards or private histories were accessed by the reviewer.
 The preview uses a private SQLite copy without billing credentials and disables
 both background schedulers. No CI or secret files change; no new cost.
+
+# Make historical usage lines visible
+
+Assignment: Codex · "Set up api-costs spend tracker" · 01a16549-f1da-7070-8cdc-4c1e96056b2a
+
+The seven-day scale compressed newly collected readings into what looked like
+single dots. Default to Recorded history on a shared calendar-time axis fitted to
+the saved range. Connect actual samples with line segments so equal usage is flat
+and increases have a slope. Keep the Full week overview, its average pace and
+forecast, and the coverage disclosure. Tooltip values remain real saved readings;
+connecting lines describe changes between samples without inventing observations.
+No source, retention, billing, credential or schema changes.
+
+Validation pending.

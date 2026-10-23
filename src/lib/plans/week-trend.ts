@@ -49,10 +49,10 @@ export function weeklyValueAt(s: WeeklySeries, at: number): WeeklyValue | null {
   return { at, used: Math.min(100, s.projected * (at - s.start) / (WEEK_DAYS * DAY)), kind: "forecast" };
 }
 
-// A step reaches a new reported percentage at its sample time. No assumed zero,
-// no smoothed curve, and no extension after the last saved reading.
-export function recordedStepPath(points: TrendPoint[], x: (at: number) => number, y: (used: number) => number): string {
-  return points.map((p, i) => i === 0 ? `M${x(p.at)},${y(p.used)}` : `H${x(p.at)}V${y(p.used)}`).join(" ");
+// Connect actual samples with straight segments. Their slope describes the
+// average change between observations, not the precise time of each request.
+export function recordedLinePath(points: TrendPoint[], x: (at: number) => number, y: (used: number) => number): string {
+  return points.map((p, i) => i === 0 ? `M${x(p.at)},${y(p.used)}` : `L${x(p.at)},${y(p.used)}`).join(" ");
 }
 
 // Bound SVG marker nodes on dense histories. The path still contains every sample.
@@ -60,4 +60,22 @@ export function sampleMarkers(points: TrendPoint[], limit = 120): TrendPoint[] {
   if (points.length <= limit) return points;
   const stride = Math.ceil((points.length - 1) / (limit - 1));
   return points.filter((_, i) => i % stride === 0 || i === points.length - 1);
+}
+
+// A shared calendar axis makes short collected histories visible even when the
+// plans have different reset dates. Padding also keeps a lone sample visible.
+export function recordedDomain(series: WeeklySeries[], nowSec: number): { from: number; to: number } {
+  if (!series.length) return { from: nowSec - 60, to: nowSec + 60 };
+  const first = Math.min(...series.map((s) => s.points[0].at));
+  const last = Math.max(...series.map((s) => s.latest.at));
+  const padding = Math.max(30, (last - first) * 0.04);
+  return { from: first - padding, to: last + padding };
+}
+
+// Tooltips report a saved value with its original timestamp. They never label an
+// interpolated point on the connecting segment as an actual observation.
+export function recordedValueAt(s: WeeklySeries, at: number): WeeklyValue | null {
+  if (at < s.points[0].at || at > s.latest.at) return null;
+  const p = s.points.findLast((p) => p.at <= at)!;
+  return { ...p, kind: "recorded" };
 }

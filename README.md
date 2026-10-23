@@ -363,7 +363,7 @@ MIT
 ## Recorded weekly quota chart
 
 The Subscriptions chart uses real saved quota samples from the current reset
-period (allowing subsecond reset timestamp jitter). Solid steps join all sampled percentages; dots mark a bounded subset on dense histories; changes can occur between
+period (allowing subsecond reset timestamp jitter). Solid line segments join all sampled percentages; dots mark a bounded subset on dense histories; changes can occur between
 samples. It starts at the first recorded reading, with no invented zero at reset
 and no solid continuation after the latest sample. Provider corrections may make
 the recorded line dip. Earlier unobserved usage cannot be reconstructed from
@@ -374,8 +374,12 @@ since reset at the latest reading); a dotted continuation forecasts that pace
 until reset or 100%. The grey diagonal is the reference for evenly consuming the
 weekly allowance. Average pace can be hidden. Hover or use left/right arrow keys
 on the chart to inspect recorded timestamps and forecasts. Reading coverage and
-forecast lists each plan's first/latest timestamp and sample count. The x-axis
-compares days into each plan's own week, rather than shared calendar dates.
+forecast lists each plan's first/latest timestamp and sample count. The default Recorded history view fits the collected time span on a shared local
+calendar axis so historical points are visible immediately. Rising segments show
+average usage changes between samples; equal percentages form flat segments.
+Exact change times between samples remain unknown. The Full week view compares
+days into each plan's own week and includes the forecast and even-pace reference.
+Tooltips report real saved values and their timestamps, not interpolated readings.
 
 Newly collected history may initially be a single point or a short flat segment.
 The curve gains detail as new percentages are saved; past usage is not backfilled
