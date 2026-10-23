@@ -58,3 +58,6 @@ docs/plans/
 
 # generated macOS launcher
 /AI Usage.app/
+
+# Private historical database snapshots
+/data/backups/

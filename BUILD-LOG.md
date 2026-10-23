@@ -221,3 +221,40 @@ rechecked corrections db38536 and dfe4419 as Ready, with no actionable findings.
 No credentials, Keychain items, live provider APIs or private user histories were
 accessed by the reviewer. Existing Node module-type and Turbopack tracing warnings
 remain. No new costs, CI changes or secret-file changes.
+
+# Preserve historical dashboard data
+
+Assignment: Codex · "Set up api-costs spend tracker" · 01a16549-f1da-7070-8cdc-4c1e96056b2a
+
+Retain subscription quota observations in SQLite, capture them without an open
+browser, and take verified daily online SQLite backups. No historical data
+expiration is introduced. Current source timestamps remain distinct from first
+and last observation times; repeated cached readings are merged. Missing, invalid,
+expired and reset readings do not become invented zero samples. Valid legacy
+history is imported idempotently, including completed periods. Saved recent points
+feed the weekly chart without deleting older observations.
+
+The background loop starts 30 seconds after startup and repeats every five minutes,
+independent of the browser and the provider billing scheduler. Backups include WAL
+transactions, become verified standalone SQLite files, publish atomically without
+overwriting completed copies, and are namespaced by UTC date and source filename.
+No backups expire automatically. Private backup paths are ignored by Git. The
+README distinguishes retained aggregates from original logs, mutable current rows
+from daily versions, source gaps, and same-disk backups from external protection.
+
+Validation: all 77 tests, TypeScript, production build and lint pass (zero lint
+errors, one pre-existing OpenRouter warning). Nine synthetic tests cover schema
+preservation, cached/zero/malformed readings, provider/window/reset history,
+legacy-source removal, WAL backup restoration, private modes, concurrent backups,
+retained daily versions, failure cleanup and distinct database filenames. An
+isolated production preview, using a private SQLite copy and no billing credentials,
+recorded all five live quota windows and created a verified backup before any
+browser was opened. The backup retained the existing billing/activity table counts;
+its integrity check passed. The dashboard still renders current readings and trends.
+
+A fresh GPT-6-Astra reviewer identified legacy-history import and backup-name
+collision issues in 801a753; both were fixed and regression-tested in f982146.
+The correction recheck was Ready with no remaining actionable findings. The reviewer
+also independently verified startup timing, five-minute scheduling, overlapping
+ticks, backup after refresh failure and recovery using synthetic integration tests.
+The reviewer accessed no credentials, Keychain, live provider APIs or private data.
