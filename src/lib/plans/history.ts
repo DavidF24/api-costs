@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { windowTrend, type PlanUsage } from "./parse";
 import { sqlite } from "@/lib/db";
-import { archivePlanUsage, quotaHistoryJsonl } from "@/lib/db/quota-history";
+import { archivePlanUsage, importQuotaHistory, quotaHistoryJsonl } from "@/lib/db/quota-history";
 
 // Optional legacy ai-quota history supplements the app-owned SQLite archive.
 const HISTORY_PATH = join(homedir(), ".local", "state", "ai-usage", "history.jsonl");
@@ -17,6 +17,7 @@ export function withWeeklyTrends(plans: PlanUsage[]): PlanUsage[] {
     // not installed
   }
   try {
+    importQuotaHistory(sqlite, text);
     archivePlanUsage(sqlite, plans);
     text += "\n" + quotaHistoryJsonl(sqlite);
   } catch {

@@ -152,8 +152,8 @@ primary database and its historical records have no automatic expiration:
   or complete source logs are stored.
 - `quota_observations`: subscription percentages, window lengths, reset times,
   source timestamps and first/last observed times. Duplicate cached readings are
-  merged. Missing/error/expired readings do not become zero usage. Old quota rows
-  remain after resets; the weekly chart queries only the current period.
+  merged. Missing/error/expired readings do not become zero usage. Valid legacy `history.jsonl` observations are imported too, including completed
+  periods. Old quota rows remain after resets; the weekly chart queries only the current period.
 
 Quota capture runs every five minutes while the local service is running, even
 with the browser closed, and on dashboard quota reads. It begins 30 seconds after
@@ -163,7 +163,7 @@ Set `HISTORY_CAPTURE_MINUTES` to a positive interval, or `0` to disable backgrou
 quota capture and backups (dashboard quota reads still save valid readings).
 
 The same background loop creates one verified online SQLite backup per UTC day in
-`data/backups/costs-YYYY-MM-DD.sqlite`, next to the configured database. Backups
+`data/backups/YYYY-MM-DD/costs.sqlite`, next to the configured database (the source filename is preserved). Backups
 include committed WAL transactions, are published atomically with private file
 permissions, and do not overwrite existing daily snapshots. No daily snapshots
 are automatically deleted. They include all database tables, but not `.env.local`,

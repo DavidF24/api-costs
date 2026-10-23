@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import { chmod, link, mkdir, open, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 
 function verify(path: string, standalone = false) {
@@ -18,10 +18,10 @@ function verify(path: string, standalone = false) {
 // SQLite's online backup API includes committed WAL data. Never copy the live file
 // directly, overwrite a completed daily snapshot, or expire historical backups.
 export async function backupDatabase(sqlite: Database.Database, databasePath: string, now = new Date()): Promise<string> {
-  const dir = join(dirname(databasePath), "backups");
+  const dir = join(dirname(databasePath), "backups", now.toISOString().slice(0, 10));
   await mkdir(dir, { recursive: true, mode: 0o700 });
   await chmod(dir, 0o700);
-  const target = join(dir, `costs-${now.toISOString().slice(0, 10)}.sqlite`);
+  const target = join(dir, basename(databasePath));
   if (existsSync(target)) {
     verify(target);
     return target;

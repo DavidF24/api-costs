@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import Database from "better-sqlite3";
-import { ensureQuotaHistory, archivePlanUsage, quotaHistoryJsonl } from "../src/lib/db/quota-history.ts";
+import { ensureQuotaHistory, archivePlanUsage, importQuotaHistory, quotaHistoryJsonl } from "../src/lib/db/quota-history.ts";
 import { backupDatabase } from "../src/lib/db/backup.ts";
 import { windowTrend, type PlanUsage } from "../src/lib/plans/parse.ts";
 
@@ -105,7 +105,7 @@ test("daily backup restores committed WAL data, stays private and never overwrit
     const [first, concurrent] = await Promise.all([backupDatabase(f.sqlite, f.path, now), backupDatabase(f.sqlite, f.path, now)]);
     assert.equal(first, concurrent);
     assert.equal(statSync(first).mode & 0o777, 0o600);
-    assert.equal(statSync(join(f.dir, "backups")).mode & 0o777, 0o700);
+    assert.equal(statSync(join(f.dir, "backups", "2026-10-22")).mode & 0o777, 0o700);
     const restored = new Database(first, { readonly: true });
     try {
       assert.equal(restored.pragma("integrity_check", { simple: true }), "ok");
@@ -119,7 +119,7 @@ test("daily backup restores committed WAL data, stays private and never overwrit
     finally { unchanged.close(); }
     const second = await backupDatabase(f.sqlite, f.path, new Date(now.getTime() + 86400_000));
     assert.notEqual(first, second);
-    assert.deepEqual(readdirSync(join(f.dir, "backups")).sort(), ["costs-2026-10-22.sqlite", "costs-2026-10-23.sqlite"]);
+    assert.deepEqual(readdirSync(join(f.dir, "backups")).sort(), ["2026-10-22", "2026-10-23"]);
   } finally { f.cleanup(); }
 });
 
@@ -127,10 +127,48 @@ test("backup failure preserves source and completed snapshots and cleans tempora
   const f = fixture();
   try {
     const first = await backupDatabase(f.sqlite, f.path, now);
-    writeFileSync(join(f.dir, "backups", "costs-2026-10-23.sqlite"), "corrupt placeholder", { mode: 0o600 });
+    mkdirSync(join(f.dir, "backups", "2026-10-23"), { mode: 0o700 });
+    writeFileSync(join(f.dir, "backups", "2026-10-23", "costs.sqlite"), "corrupt placeholder", { mode: 0o600 });
     await assert.rejects(backupDatabase(f.sqlite, f.path, new Date(now.getTime() + 86400_000)));
     assert.equal(f.sqlite.pragma("integrity_check", { simple: true }), "ok");
     assert.equal(readdirSync(join(f.dir, "backups")).filter((n) => n.endsWith(".tmp")).length, 0);
     assert.ok(statSync(first).size > 0);
   } finally { f.cleanup(); }
+});
+
+
+test("legacy quota history survives source removal, including completed periods", () => {
+  const f = fixture();
+  try {
+    const at = now.getTime() / 1000 - 600;
+    const current = { at, provider: "grok", minutes: 10080, resets_at: reset, used: 15 };
+    const old = { ...current, at: at - 30 * 86400, resets_at: reset - 30 * 86400 };
+    const legacy = [current, old, { ...current, used: null }, { ...current, provider: "unknown" }].map((row) => JSON.stringify(row)).join("\n") + "\nmalformed";
+    assert.equal(importQuotaHistory(f.sqlite, legacy, now), 2);
+    importQuotaHistory(f.sqlite, legacy, now);
+    archivePlanUsage(f.sqlite, [plan()], now);
+    // The legacy source is now absent; only SQLite supplies the older chart point.
+    importQuotaHistory(f.sqlite, "", now);
+    assert.equal(windowTrend(quotaHistoryJsonl(f.sqlite, now), "grok", plan().windows[0]).find((p) => p.at === at)?.used, 15);
+    assert.equal((f.sqlite.prepare("SELECT count(*) n FROM quota_observations").get() as {n:number}).n, 3);
+    assert.equal((f.sqlite.prepare("SELECT count(*) n FROM quota_observations WHERE resets_at < ?").get(now.getTime()/1000) as {n:number}).n, 1);
+  } finally { f.cleanup(); }
+});
+
+test("different database files in the same directory get distinct restorable backups", async () => {
+  const f = fixture();
+  const secondPath = join(f.dir, "second.sqlite");
+  const second = new Database(secondPath);
+  try {
+    f.sqlite.exec("CREATE TABLE marker (name TEXT); INSERT INTO marker VALUES ('first')");
+    second.exec("CREATE TABLE marker (name TEXT); INSERT INTO marker VALUES ('second')");
+    const a = await backupDatabase(f.sqlite, f.path, now);
+    const b = await backupDatabase(second, secondPath, now);
+    assert.notEqual(a, b);
+    for (const [path, name] of [[a, "first"], [b, "second"]]) {
+      const restored = new Database(path, { readonly: true });
+      try { assert.deepEqual(restored.prepare("SELECT * FROM marker").all(), [{ name }]); }
+      finally { restored.close(); }
+    }
+  } finally { second.close(); f.cleanup(); }
 });
