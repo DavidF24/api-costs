@@ -216,6 +216,31 @@ pm2 logs api-costs      # view logs
 pm2 restart api-costs   # restart after code changes
 ```
 
+## Clickable macOS launcher
+
+After configuring `.env.local` and building with `npm run build`, run:
+
+```bash
+./scripts/install-macos-launcher.sh
+```
+
+Double-click **AI Usage.app** in the program folder to open the dashboard at
+`http://127.0.0.1:4100`. You can drag the app to the Dock or create a Finder alias
+on your Desktop. The launcher starts the per-user LaunchAgent if needed and reuses
+an already running service. The service also starts at login and runs independently
+of your terminal or coding assistant. Use this LaunchAgent instead of pm2 when
+choosing the macOS launcher.
+
+The installer records the current program folder in
+`~/Library/LaunchAgents/com.davidfrey.api-costs.plist`. To move the installation,
+unload that service with `launchctl bootout gui/$(id -u)/com.davidfrey.api-costs`,
+move the whole folder, and rerun the installer in its new location before opening
+the app. Rebuild and restart the service after changing the application code.
+
+For a readiness check without opening a browser, run
+`./scripts/launch-dashboard.sh --no-open`. Startup failures are logged in
+`data/launcher.log` and `data/service-error.log`.
+
 ## Adding a new provider
 
 1. Create `src/lib/providers/yourprovider.ts` implementing the `ProviderAdapter` interface
