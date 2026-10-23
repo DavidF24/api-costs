@@ -1,10 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createCipheriv, createHash } from "node:crypto";
 import { gzipSync, zstdCompressSync, crc32 } from "node:zlib";
 import { cacheName, parseCachedJSON } from "../src/lib/plans/chromium-cache.ts";
 import { desktopClaudeWindows } from "../src/lib/plans/claude-desktop.ts";
 import { parseGrokGRPC, parseGrokREST, parseBotUsage } from "../src/lib/plans/grok-wire.ts";
+
+import { botStorageKey, decryptBotAccess, encryptedBotAccess } from "../src/lib/plans/grok-bot-auth.ts";
 
 const now = 1792700000;
 const key = "1/0/https://claude.ai/api/organizations/11111111-1111-1111-1111-111111111111/usage";
@@ -74,7 +76,7 @@ test("Grok REST: omitted JSON percentage stays unknown until the complete gRPC c
   assert.equal(parseGrokREST({ config: { ...config, creditUsagePercent: 36 } }, now)?.used, 36);
 });
 test("Grok Bot: recurring paid allowance is separate; trial expiry and absent usage are not zero", () => {
-  const bot = { usagePercent: 16.2, hasNonZeroIncludedLimit: true, nextResetTimestampUtc: new Date((now + 10000) * 1000).toISOString() };
+  const bot = { currentPeriodStart: new Date((now + 10000 - 604800) * 1000).toISOString(), usagePercent: 16.2, hasNonZeroIncludedLimit: true, nextResetTimestampUtc: new Date((now + 10000) * 1000).toISOString() };
   assert.equal(parseBotUsage(bot, now)?.used, 16.2);
   assert.equal(parseBotUsage(bot, now)?.minutes, 10080);
   assert.equal(parseBotUsage({ ...bot, includedLimitZero: true }, now), null);
@@ -89,5 +91,40 @@ test("Grok and Bot: malformed period dates cannot create an ok reading or suppre
   for (const dates of [["invalid", end], [start, "invalid"], ["invalid", "invalid"]]) {
     assert.equal(parseGrokREST({ config: { creditUsagePercent: 0, currentPeriod: { type: "USAGE_PERIOD_TYPE_WEEKLY", start: dates[0], end: dates[1] } } }, now), null);
   }
-  assert.equal(parseBotUsage({ hasNonZeroIncludedLimit: true, usagePercent: 0, nextResetTimestampUtc: "invalid" }, now), null);
+  assert.equal(parseBotUsage({ hasNonZeroIncludedLimit: true, usagePercent: 0, currentPeriodStart: start, nextResetTimestampUtc: "invalid" }, now), null);
+});
+
+
+function botFixture(exp: unknown = now + 3600, key = botStorageKey(Buffer.from("synthetic-storage-password"))) {
+  const token = [Buffer.from('{"alg":"HS256"}').toString("base64url"), Buffer.from(JSON.stringify({ exp })).toString("base64url"), "synthetic_signature"].join(".");
+  const cipher = createCipheriv("aes-128-cbc", key, Buffer.alloc(16, 32));
+  const encrypted = Buffer.concat([Buffer.from("v10"), cipher.update(token), cipher.final()]);
+  return { token, encrypted, key };
+}
+const botStore = (active: string, accounts: Record<string, unknown>) => ({ "cursor-accounts": JSON.stringify({ active, accounts }) });
+test("Grok Bot login: decrypt only the active account with the app's macOS storage key", () => {
+  const f = botFixture();
+  const raw = botStore("selected", { other: { "cursor-access-token": "unused" }, selected: { "cursor-access-token": f.encrypted.toString("base64") } });
+  assert.deepEqual(encryptedBotAccess(raw), f.encrypted);
+  assert.equal(decryptBotAccess(f.encrypted, f.key, now), f.token);
+  assert.equal(encryptedBotAccess(botStore("missing", raw)), null);
+  assert.equal(encryptedBotAccess(botStore("toString", {})), null);
+});
+test("Grok Bot login: missing, malformed, unsupported and oversized stores fail closed", () => {
+  for (const store of [null, {}, { "cursor-accounts": "invalid" }, { "cursor-accounts": " ".repeat(1024 * 1024 + 1) }]) assert.equal(encryptedBotAccess(store), null);
+  const f = botFixture();
+  const unsupported = Buffer.from(f.encrypted); unsupported.write("v11");
+  for (const encoded of ["", "!!!", "x".repeat(32769), unsupported.toString("base64"), f.encrypted.subarray(0, 17).toString("base64"), f.encrypted.toString("base64") + "="]) assert.equal(encryptedBotAccess(botStore("a", { a: { "cursor-access-token": encoded } })), null);
+});
+test("Grok Bot login: expired JWT, missing expiry, bad encryption and wrong key are rejected", () => {
+  for (const exp of [now - 1, now + 30, null, "tomorrow"]) { const f = botFixture(exp); assert.equal(decryptBotAccess(f.encrypted, f.key, now), null); }
+  const f = botFixture(); const bad = Buffer.from(f.encrypted); bad[bad.length - 1] ^= 0xff;
+  assert.equal(decryptBotAccess(bad, f.key, now), null);
+  assert.equal(decryptBotAccess(f.encrypted, Buffer.alloc(16), now), null);
+  assert.equal(decryptBotAccess(f.encrypted, Buffer.alloc(8), now), null);
+});
+test("Grok Bot allowance: requires actual current weekly period and finite percentage", () => {
+  const active = { hasNonZeroIncludedLimit: true, usagePercent: 0, currentPeriodStart: new Date((now - 100) * 1000).toISOString(), nextResetTimestampUtc: new Date((now + 604700) * 1000).toISOString() };
+  assert.equal(parseBotUsage(active, now)?.used, 0);
+  for (const v of [{ ...active, currentPeriodStart: undefined }, { ...active, currentPeriodStart: "bad" }, { ...active, currentPeriodStart: new Date((now + 10) * 1000).toISOString() }, { ...active, nextResetTimestampUtc: new Date((now + 86400) * 1000).toISOString() }, { ...active, usagePercent: NaN }, { ...active, usagePercent: -1 }, { ...active, usagePercent: 101 }, { ...active, usagePercent: "0" }, { ...active, includedLimitZero: true }]) assert.equal(parseBotUsage(v, now), null);
 });

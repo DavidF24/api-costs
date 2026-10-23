@@ -105,3 +105,28 @@ Initial independent review found malformed-date acceptance and optional network 
 delaying the initial page. Corrections reject non-finite period bounds and keep
 initial rendering synchronous with local/cached readings. The client refreshes
 network-backed usage immediately after mount. A fresh GPT-6-Astra reviewer rechecked both corrections at e3152e1 and marked the implementation Ready with no remaining actionable findings.
+
+
+# Automatic Grok Bot usage
+
+Assignment: Codex · "Set up api-costs spend tracker" · 01a16549-f1da-7070-8cdc-4c1e96056b2a
+
+The user approved reading Grok Bot Safe Storage to decrypt the app's existing
+login in memory and retrieve its weekly allowance from Cursor's native usage API.
+Read only the active encrypted access token and the exact app Keychain item.
+No refresh token access, credential persistence, or changes to the native login.
+The new gauge and weekly trend refresh with the existing plan panel. Initial page
+rendering stays local; Grok and Bot network reads run concurrently after mount.
+
+A live read-only probe returned HTTP 200, 15.921351% usage, and an active weekly
+period ending October 26 at 04:52:50 UTC (October 25, 11:52 PM America/Chicago).
+Only quota/expiry metadata was printed; no credential or private response body
+was printed or saved.
+
+Validation: all 52 tests, TypeScript checks, targeted ESLint, and the isolated
+production build passed. Synthetic tests cover active-account selection, wrong
+keys, malformed/oversized encrypted stores, expired tokens, invalid weekly dates,
+trial-only allowances and absent percentages. Existing Node module-type and
+Turbopack filesystem-tracing warnings remain. A fresh GPT-6-Astra reviewer marked
+implementation commit 9621a25 Ready with no actionable findings; no credentials,
+Keychain items or live provider endpoints were accessed by the reviewer.

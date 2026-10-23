@@ -95,7 +95,8 @@ export function parseBotUsage(data: unknown, now: number): BillingReading | null
   const hasLimit = typeof v.includedLimitZero === "boolean" ? !v.includedLimitZero : v.hasNonZeroIncludedLimit === true;
   if (!hasLimit) return null; // A trial expiry is not a recurring weekly reset.
   const end = typeof v.nextResetTimestampUtc === "string" ? Date.parse(v.nextResetTimestampUtc) / 1000 : null;
-  const start = end === null ? null : end - 7 * 86400;
+  const start = typeof v.currentPeriodStart === "string" ? Date.parse(v.currentPeriodStart) / 1000 : null;
+  if (start === null || end === null || Math.abs(end - start - 7 * 86400) > 60) return null;
   const r = reading(v.usagePercent, start, end, now);
   return r ? { ...r, minutes: 10080 } : null;
 }

@@ -43,11 +43,11 @@ npm run dev
 # Open http://localhost:4100
 ```
 
-## Plan limits (Claude, ChatGPT Codex and Grok subscriptions)
+## Plan limits (Claude, ChatGPT Codex, Grok and Grok Bot)
 
 Subscription usage is quota, not dollars, so it gets its own panel: percent used per
 window, when the window resets, and a notch showing how much of the window has passed.
-Both sources are local files; no API keys or network calls.
+Claude and Codex use local quota files. Grok and Grok Bot read their usage services with existing local logins; separate API billing keys are not needed.
 
 | Plan | Source | Windows |
 |------|--------|---------|
@@ -79,6 +79,19 @@ again with the Grok CLI. Missing, malformed or unavailable data stays unavailabl
 a verified complete active protobuf billing period can report proto3's implicit 0%.
 Grok's subscription pool is separate from Grok Bot's weekly allowance.
 
+Grok Bot on macOS reads only the active account's encrypted access token from
+`~/Library/Application Support/Grok Bot/sand-secrets.json`. With the user's approval,
+`/usr/bin/security` reads the app's `Grok Bot Safe Storage` / `Grok Bot Key` item.
+Approve any macOS Keychain prompt yourself. The derived decryption key stays in
+process memory; the access token goes only to the fixed native usage endpoint at
+`https://api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus`.
+Credentials and response bodies are never logged or written. The dashboard does
+not access refresh tokens or change the app's login. Open Grok Bot to renew an
+expired login. A denied Keychain read retries after ten minutes or a dashboard
+service restart, rather than prompting every minute. Initial page rendering never
+waits for Keychain or network access. Only a valid active weekly paid allowance is
+shown; trials, missing values and failures remain unavailable.
+
 Plan readings refresh every minute while the dashboard is open, also on window
 focus. Concurrent Grok reads are shared and network requests are limited to one
 refresh per minute. Provider resets always come from the source. After a reset,
@@ -86,7 +99,8 @@ old usage is unknown until another reading arrives. API billing sync is separate
 
 Source references: [Chromium cache format](https://chromium.googlesource.com/chromium/src/+/main/net/disk_cache/simple/simple_entry_format.h),
 [community Claude Desktop cache approach](https://github.com/aqua5230/usage), and
-[CodexBar Grok billing protocol](https://github.com/steipete/CodexBar/blob/main/docs/grok.md).
+[CodexBar Grok billing protocol](https://github.com/steipete/CodexBar/blob/main/docs/grok.md), and
+[Grok Bot native usage endpoint](https://github.com/akitaonrails/ai-usagebar/blob/main/docs/vendor-endpoints.md).
 The implementation uses the documented format and protocol facts; it does not
 bundle or execute those projects.
 
