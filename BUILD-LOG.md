@@ -286,3 +286,28 @@ findings after checking dense-history rendering and subsecond reset precision.
 No credentials, live dashboards or private histories were accessed by the reviewer.
 The preview uses a private SQLite copy without billing credentials and disables
 both background schedulers. No CI or secret files change; no new cost.
+
+# Make historical usage lines visible
+
+Assignment: Codex · "ai-cost-dashboard" · 01a16549-f1da-7070-8cdc-4c1e96056b2a
+
+The seven-day scale compressed newly collected readings into what looked like
+single dots. Default to Recorded history on a shared calendar-time axis fitted to
+the saved range. Connect actual samples with line segments so equal usage is flat
+and increases have a slope. Keep the Full week overview, its average pace and
+forecast, and the coverage disclosure. Tooltip values remain real saved readings;
+connecting lines describe changes between samples without inventing observations.
+No source, retention, billing, credential or schema changes.
+
+Validation: all 90 tests, TypeScript, lint and production build pass. Lint has
+zero errors and one pre-existing OpenRouter warning. Browser checks verify four
+connected history paths, clock-time labels, Full week forecasts, the average toggle,
+unknown coverage, and keyboard access to the latest actual reading. The 320px
+layout has no page overflow and uses two calendar labels to avoid overlap.
+
+The fresh GPT-6-Astra reviewer found the latest sample was unreachable with fixed
+keyboard increments. Commit 729530e navigates actual timestamps and snaps pointer
+inspection within six pixels, with regression tests for final and lone samples.
+The correction recheck was Ready with no remaining actionable findings. Review
+used only source and synthetic tests; no credentials or private histories.
+No CI, secrets, collection, retention or billing changes; no new cost.
