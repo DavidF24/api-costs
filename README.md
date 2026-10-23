@@ -363,7 +363,7 @@ MIT
 ## Recorded weekly quota chart
 
 The Subscriptions chart uses real saved quota samples from the current reset
-period. Solid steps and dots join sampled percentages; changes can occur between
+period (allowing subsecond reset timestamp jitter). Solid steps join all sampled percentages; dots mark a bounded subset on dense histories; changes can occur between
 samples. It starts at the first recorded reading, with no invented zero at reset
 and no solid continuation after the latest sample. Provider corrections may make
 the recorded line dip. Earlier unobserved usage cannot be reconstructed from

@@ -1,8 +1,8 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { PlanUsage } from "@/lib/plans";
-import { DAY, WEEK_DAYS, weeklySeries, weeklyValueAt, recordedStepPath } from "@/lib/plans/week-trend";
+import { DAY, WEEK_DAYS, weeklySeries, weeklyValueAt, recordedStepPath, sampleMarkers } from "@/lib/plans/week-trend";
 import { formatClockTime } from "@/lib/format";
 
 const SERIES = {
@@ -30,12 +30,17 @@ export function WeekTrend({ plans, now }: { plans: PlanUsage[]; now: number }) {
   }, []);
 
   const nowSec = now / 1000;
-  const series = weeklySeries(plans, nowSec).map((s) => ({ ...s, ...SERIES[s.id] }));
   const plotW = Math.max(0, width - M.left - M.right);
   const plotH = HEIGHT - M.top - M.bottom;
   const x = (day: number) => M.left + (day / WEEK_DAYS) * plotW;
   const y = (pct: number) => M.top + (1 - Math.min(100, pct) / 100) * plotH;
   const atDay = (start: number, at: number) => (at - start) / DAY;
+  const series = useMemo(() => weeklySeries(plans, nowSec).map((s) => ({
+    ...s, ...SERIES[s.id], markers: sampleMarkers(s.points),
+    path: recordedStepPath(s.points,
+      (at) => M.left + ((at - s.start) / DAY / WEEK_DAYS) * plotW,
+      (used) => M.top + (1 - used / 100) * plotH),
+  })), [plans, nowSec, plotW, plotH]);
   const summary = series.length ? series.map((s) => `${s.label}: ${Math.round(s.latest.used)}%, ${s.points.length} saved readings, latest ${dayTime.format(new Date(s.latest.at * 1000))}`).join(". ") : "No weekly readings yet.";
   const totalPoints = series.reduce((n, s) => n + s.points.length, 0);
 
@@ -98,8 +103,8 @@ export function WeekTrend({ plans, now }: { plans: PlanUsage[]; now: number }) {
             const day = atDay(s.start, s.latest.at);
             const crowded = series.some((o, j) => j !== i && Math.abs(x(day) - x(atDay(o.start, o.latest.at))) < 35 && Math.abs(y(s.latest.used) - y(o.latest.used)) < 22 && j < i);
             return <g key={s.id}>
-              <path data-line="recorded" data-provider={s.id} d={recordedStepPath(s.points, (at) => x(atDay(s.start, at)), y)} fill="none" stroke={s.color} strokeWidth={2.5} strokeLinejoin="round" />
-              {s.points.map((p) => <circle key={p.at} cx={x(atDay(s.start, p.at))} cy={y(p.used)} r={2} fill={s.color}><title>{s.label}: {p.used}% recorded {dayTime.format(new Date(p.at * 1000))}</title></circle>)}
+              <path data-line="recorded" data-provider={s.id} d={s.path} fill="none" stroke={s.color} strokeWidth={2.5} strokeLinejoin="round" />
+              {s.markers.map((p) => <circle key={p.at} cx={x(atDay(s.start, p.at))} cy={y(p.used)} r={2} fill={s.color}><title>{`${s.label}: ${p.used}% recorded ${dayTime.format(new Date(p.at * 1000))}`}</title></circle>)}
               <circle cx={x(day)} cy={y(s.latest.used)} r={5} fill={s.color} stroke="var(--card)" strokeWidth={2} />
               <text x={x(day)} y={y(s.latest.used) + (crowded ? 18 : -11)} textAnchor="middle" className="fill-foreground text-[12px] font-semibold tabular-nums">{Math.round(s.latest.used)}%</text>
             </g>;
@@ -128,7 +133,7 @@ export function WeekTrend({ plans, now }: { plans: PlanUsage[]; now: number }) {
             <tbody>{series.map((s) => <tr key={s.id}>
               <th scope="row" className="py-2 pr-4 font-medium text-foreground">{s.label}</th>
               <td className="pr-4">{s.points.length}</td><td className="pr-4">{dayTime.format(new Date(s.points[0].at * 1000))}</td>
-              <td className="pr-4">{dayTime.format(new Date(s.latest.at * 1000))}</td><td className="pr-4">{s.latest.used}%</td>
+              <td className="pr-4">{dayTime.format(new Date(s.latest.at * 1000))}</td><td className="pr-4">{Number(s.latest.used.toFixed(1))}%</td>
               <td className="pr-4">{s.projected === null ? "Too early to tell" : s.projected > 100 ? `100% by ${dayTime.format(new Date(s.forecastEnd!.at * 1000))}` : `About ${Math.round(s.projected)}%`}</td>
               <td>{formatClockTime(s.resetsAt, nowSec)}</td>
             </tr>)}</tbody>

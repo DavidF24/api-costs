@@ -54,3 +54,10 @@ export function weeklyValueAt(s: WeeklySeries, at: number): WeeklyValue | null {
 export function recordedStepPath(points: TrendPoint[], x: (at: number) => number, y: (used: number) => number): string {
   return points.map((p, i) => i === 0 ? `M${x(p.at)},${y(p.used)}` : `H${x(p.at)}V${y(p.used)}`).join(" ");
 }
+
+// Bound SVG marker nodes on dense histories. The path still contains every sample.
+export function sampleMarkers(points: TrendPoint[], limit = 120): TrendPoint[] {
+  if (points.length <= limit) return points;
+  const stride = Math.ceil((points.length - 1) / (limit - 1));
+  return points.filter((_, i) => i % stride === 0 || i === points.length - 1);
+}

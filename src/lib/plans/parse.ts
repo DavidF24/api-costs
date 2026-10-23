@@ -164,7 +164,7 @@ export function aiQuotaCodexWindows(state: AiQuotaCodexState, nowSec: number): Q
 
 type HistoryRow = { at?: unknown; provider?: unknown; minutes?: unknown; resets_at?: unknown; used?: unknown };
 
-// Only recorded readings in this exact reset period. Do not infer a zero at reset,
+// Only recorded readings in this reset period (allow subsecond clock jitter). Do not infer a zero at reset,
 // interpolate missing history, or discard a later provider correction.
 export function windowTrend(jsonl: string, provider: string, w: QuotaWindow, nowSec = Date.now() / 1000): TrendPoint[] {
   if (w.resetsAt === null || !Number.isFinite(w.resetsAt) || w.reset) return [];
@@ -179,7 +179,7 @@ export function windowTrend(jsonl: string, provider: string, w: QuotaWindow, now
     if (!line.includes(provider)) continue;
     let r: HistoryRow | null;
     try { r = JSON.parse(line); } catch { continue; }
-    if (!r || r.provider !== provider || r.minutes !== w.windowMinutes || r.resets_at !== w.resetsAt) continue;
+    if (!r || r.provider !== provider || r.minutes !== w.windowMinutes || (typeof r.resets_at !== "number" || Math.abs(r.resets_at - w.resetsAt) >= 1)) continue;
     if (typeof r.at === "number" && typeof r.used === "number") add(r.at, r.used);
   }
   // Prefer the current reading when a timestamp is present in both sources.

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { windowTrend, type PlanUsage, type TrendPoint } from "../src/lib/plans/parse.ts";
-import { DAY, weeklySeries, weeklyValueAt, recordedStepPath } from "../src/lib/plans/week-trend.ts";
+import { DAY, weeklySeries, weeklyValueAt, recordedStepPath, sampleMarkers } from "../src/lib/plans/week-trend.ts";
 
 const start = 1_000_000;
 const end = start + 7 * DAY;
@@ -76,4 +76,21 @@ test("separate reset periods keep all four providers on their own elapsed time a
   assert.equal(all.length, 4);
   assert.deepEqual(all.map((s) => (s.latest.at - s.start) / DAY), [1, 1, 1, 1]);
   assert.deepEqual(all.map((s) => s.projected), [70, 70, 70, 70]);
+});
+
+test("subsecond reset jitter preserves samples but a different reset period does not", () => {
+  const row = (reset: number, at: number) => JSON.stringify({ at, used: 10, minutes: 10080, resets_at: reset, provider: "grok" });
+  const w = plan([]).windows[0];
+  const points = windowTrend([row(end - 0.4, start + DAY), row(end + 0.3, start + 2 * DAY), row(end + 60, start + 3 * DAY)].join("\n"), "grok", w, start + 4 * DAY);
+  assert.equal(points.length, 2);
+});
+
+test("dense histories retain all path samples while bounding SVG markers", () => {
+  const points = Array.from({ length: 10080 }, (_, i) => ({ at: i, used: i / 101 }));
+  const markers = sampleMarkers(points);
+  assert.ok(markers.length <= 120);
+  assert.equal(markers[0], points[0]);
+  assert.equal(markers.at(-1), points.at(-1));
+  const path = recordedStepPath(points, (x) => x, (y) => y);
+  assert.equal((path.match(/V/g) ?? []).length, 10079);
 });
