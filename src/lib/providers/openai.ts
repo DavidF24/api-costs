@@ -46,7 +46,7 @@ type OpenAICostResponse = {
 
 type OpenAIAccount = { organizationId?: string; adminKey: string };
 
-function accounts(): OpenAIAccount[] {
+export function accounts(): OpenAIAccount[] {
   const multiple = process.env.OPENAI_ADMIN_KEYS?.trim();
   if (!multiple) {
     const adminKey = process.env.OPENAI_ADMIN_KEY?.trim();
@@ -78,7 +78,7 @@ function accounts(): OpenAIAccount[] {
   });
 }
 
-function accountHeaders(account: OpenAIAccount): Record<string, string> {
+export function accountHeaders(account: OpenAIAccount): Record<string, string> {
   return {
     Authorization: `Bearer ${account.adminKey}`,
     ...(account.organizationId ? { "OpenAI-Organization": account.organizationId } : {}),

@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { syncKeys } from "@/lib/api-keys/sync";
 import { getAdapter, getAllAdapters } from "@/lib/providers/registry";
 import type { CostEntry, ProviderState } from "@/lib/providers/types";
 import { logSync } from "@/lib/db/queries";
@@ -21,7 +22,7 @@ const inFlight = (g.__syncInFlight ??= new Map());
 export function syncProvider(provider: string): Promise<SyncResult> {
   const running = inFlight.get(provider);
   if (running) return running;
-  const job = runSync(provider).finally(() => inFlight.delete(provider));
+  const job = Promise.all([runSync(provider), syncKeys(provider)]).then(([billing]) => billing).finally(() => inFlight.delete(provider));
   inFlight.set(provider, job);
   return job;
 }

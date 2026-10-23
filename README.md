@@ -385,3 +385,48 @@ Newly collected history may initially be a single point or a short flat segment.
 The curve gains detail as new percentages are saved; past usage is not backfilled
 with estimates. Missing, reset or unavailable current windows do not show a quota
 forecast.
+
+## API key inventory
+
+The **API spend → API keys** section reads key metadata and attributed daily usage
+using the existing provider credentials. **Refresh keys** runs it immediately;
+regular billing syncs also refresh the inventory. Select a provider or individual
+key, or search by name, usage location, note or masked identifier. Selecting a key
+opens its daily model/token details and editable **Local name**, **Used in** and
+**Notes**. These annotations are local; the dashboard never renames, creates,
+revokes or changes permissions on provider keys.
+
+| Provider | Inventory | Attributed usage |
+| --- | --- | --- |
+| OpenAI | Project key names, status, dates and provider-redacted values; needs read access to projects and their API keys in addition to Usage Read | Last 90 days of text generation tokens and requests, grouped by key ID/model; no exact billed cost by key |
+| Anthropic | Organization key names, status and partial key hints using the existing admin key | Last 30 days of Messages tokens, including cached input; request counts and exact billed cost are unavailable here |
+| OpenRouter | Default workspace keys, including disabled/expired keys; provider-redacted label or explicitly labelled hash | Reported OpenRouter cost, tokens and requests for the last 30 **completed UTC days**, excluding external BYOK charges |
+| xAI | Team key names and provider-redacted values; management credential needs read-only `ListApiKeys` | Per-key usage is not integrated |
+
+Inventory and usage permissions are checked separately. A denied inventory does
+not prevent accessible usage from being saved under its key ID, or change billing
+sync success. Source status and last successful refresh are visible in the section.
+A dash means that no attributed reading exists or that the source does not report
+the field; it does not claim zero usage. Key filters affect this section only;
+organization billing charts above retain their existing meaning. Usage is limited
+to the supported endpoints, so it may not reconcile to all provider charges.
+
+Key hints use at most eight characters on either side of six dots. Providers may
+supply fewer characters. If a redacted hint is unavailable, the UI labels the
+masked reference **Key ID** or **Key hash** rather than pretending it is the key.
+The collector allowlists metadata, discards unredacted key values and never stores
+raw API responses. Credentials continue to live only in private local configuration.
+Keep secrets out of annotation fields.
+
+SQLite tables `api_keys`, `api_key_usage` and `api_key_sync` retain metadata, local
+annotations, daily usage and source status. Refreshes replace only covered daily
+buckets, preserve older history indefinitely and retain saved keys that are no
+longer listed upstream. These tables are included in the existing whole-database
+daily backups. Metadata status is the last observed status; its last-seen date is
+shown in key details. OpenRouter current-day usage arrives after the UTC day ends.
+
+Sources: [OpenAI key metadata](https://developers.openai.com/api/reference/resources/admin/subresources/organization/subresources/projects/subresources/api_keys/methods/retrieve),
+[OpenAI usage](https://developers.openai.com/api/reference/resources/admin/subresources/organization/subresources/usage/methods/completions),
+[Anthropic usage and cost](https://platform.claude.com/docs/en/manage-claude/usage-cost-api),
+[OpenRouter key activity](https://openrouter.ai/docs/api/api-reference/analytics/get-user-activity-grouped-by-endpoint),
+[xAI management API](https://docs.x.ai/developers/rest-api-reference/management/auth).
