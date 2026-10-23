@@ -40,6 +40,11 @@ export function cachedQuota(key: string, load: () => Promise<PlanUsage>): Promis
   return entry.promise;
 }
 
+export function getCachedQuota(key: string): PlanUsage | null {
+  const entry = globalCache.subscriptionReadings?.get(key);
+  return entry?.value && entry.until > Date.now() ? entry.value : null;
+}
+
 function grokCredential(): { token: string; fingerprint: string } | null {
   let token: string, expires: number;
   try {
@@ -57,8 +62,7 @@ const LOGIN_MESSAGE = "Sign in with the Grok CLI on this Mac to refresh its exis
 export function getCachedGrokUsage(): PlanUsage {
   const credential = grokCredential();
   if (!credential) return unavailable("grok", "Grok subscription", LOGIN_MESSAGE);
-  const entry = globalCache.subscriptionReadings?.get(`grok:${credential.fingerprint}`);
-  return entry?.value && entry.until > Date.now() ? entry.value : unavailable("grok", "Grok subscription", "Refreshing subscription usage…");
+  return getCachedQuota(`grok:${credential.fingerprint}`) ?? unavailable("grok", "Grok subscription", "Refreshing subscription usage…");
 }
 export function getGrokUsage(): Promise<PlanUsage> {
   const credential = grokCredential();
