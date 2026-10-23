@@ -16,18 +16,18 @@ type Day = { date: string; messages: number; sessions: number; estCost: number }
 
 // One grid per tool, each in its own hue (the spend chart's Anthropic and OpenAI colours) and
 // scaled on its own: Codex runs at a tenth of Claude Code's message count, so a shared scale
-// would leave its grid nearly blank. Ramps are one hue, dark to bright (OKLCH L .36/.48/.62/.80);
+// would leave its grid nearly blank. Ramps progress from pale to dark on the light surface;
 // level 0 is "no activity".
 const SOURCES = [
   {
     key: "claude-code",
     label: "Claude Code",
-    levels: ["var(--meter-track)", "#652810", "#9b3b12", "#d85825", "#ffa07c"],
+    levels: ["var(--meter-track)", "#f5d7c9", "#e9aa8d", "#ca744c", "#9c4326"],
   },
   {
     key: "codex",
     label: "Codex",
-    levels: ["var(--meter-track)", "#0d4832", "#036f4d", "#189e70", "#81d2ac"],
+    levels: ["var(--meter-track)", "#cfe9dd", "#91c8ae", "#469675", "#166747"],
   },
 ] as const;
 

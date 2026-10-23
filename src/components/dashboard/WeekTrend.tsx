@@ -98,7 +98,7 @@ export function WeekTrend({ plans, now }: { plans: PlanUsage[]; now: number }) {
     : "No weekly readings yet.";
 
   return (
-    <article className="plan-group plan-group--trend">
+    <article className="week-trend">
       <header className="mb-3 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
         <div>
           <h3 className="font-medium leading-tight">This week</h3>

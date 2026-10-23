@@ -130,3 +130,24 @@ trial-only allowances and absent percentages. Existing Node module-type and
 Turbopack filesystem-tracing warnings remain. A fresh GPT-6-Astra reviewer marked
 implementation commit 9621a25 Ready with no actionable findings; no credentials,
 Keychain items or live provider endpoints were accessed by the reviewer.
+
+# Light subscription cards
+
+Assignment: Codex · "Set up api-costs spend tracker" · 01a16549-f1da-7070-8cdc-4c1e96056b2a
+
+Switch to a warm light canvas with white bordered cards, readable chart colors and
+provider icons. Claude Max keeps its two quota windows inside one card; Grok and
+Grok Bot share another card with individually labelled readings and reset times.
+ChatGPT Codex has its own card between them. Weekly trends have a separate panel.
+Usage source explanations remain available in disclosure controls. Existing data
+collection and refresh behavior are unchanged. Brand paths use LobeHub Icons (MIT).
+
+Validation: all 52 existing tests and the production build passed, including
+TypeScript. Full ESLint has zero errors and one pre-existing unused _since warning
+in the unchanged OpenRouter adapter. The existing Node module-type and Turbopack
+filesystem-tracing warnings remain. Visually checked desktop, 390px and 320px
+layouts, and the Refresh usage control. All five gauges fit inside their cards
+at 320px. The initial independent review found a narrow-screen overflow; the
+correction stacks grouped readings at 360px and below and uses horizontal dividers.
+The fresh GPT-6-Astra reviewer rechecked implementation d240feb and marked Ready
+with no remaining actionable findings. Collection and refresh behavior are unchanged.
