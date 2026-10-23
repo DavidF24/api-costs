@@ -75,7 +75,26 @@ export function recordedDomain(series: WeeklySeries[], nowSec: number): { from: 
 // Tooltips report a saved value with its original timestamp. They never label an
 // interpolated point on the connecting segment as an actual observation.
 export function recordedValueAt(s: WeeklySeries, at: number): WeeklyValue | null {
-  if (at < s.points[0].at || at > s.latest.at) return null;
-  const p = s.points.findLast((p) => p.at <= at)!;
+  // Axis conversion may round an exact sample time by a fraction of a microsecond.
+  const epsilon = 1e-6;
+  if (at < s.points[0].at - epsilon || at > s.latest.at + epsilon) return null;
+  const p = s.points.findLast((p) => p.at <= at + epsilon)!;
   return { ...p, kind: "recorded" };
+}
+
+// Keyboard inspection advances through actual sample timestamps, including a
+// lone or final sample. Pointer inspection snaps only inside a small hit area.
+export function inspectSampleTime(times: number[], at: number | null, direction: "previous" | "next" | "nearest", tolerance = 0): number | null {
+  if (!times.length) return null;
+  if (at === null) return direction === "previous" ? times.at(-1)! : times[0];
+  let lo = 0, hi = times.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (times[mid] < at - 1e-6) lo = mid + 1; else hi = mid;
+  }
+  if (direction === "previous") return times[Math.max(0, lo - 1)];
+  if (direction === "next") return times[Math.min(times.length - 1, lo + (Math.abs((times[lo] ?? Infinity) - at) < 1e-6 ? 1 : 0))];
+  const before = times[Math.max(0, lo - 1)], after = times[Math.min(times.length - 1, lo)];
+  const nearest = Math.abs(before - at) < Math.abs(after - at) ? before : after;
+  return Math.abs(nearest - at) <= tolerance ? nearest : at;
 }

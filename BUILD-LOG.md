@@ -289,7 +289,7 @@ both background schedulers. No CI or secret files change; no new cost.
 
 # Make historical usage lines visible
 
-Assignment: Codex · "Set up api-costs spend tracker" · 01a16549-f1da-7070-8cdc-4c1e96056b2a
+Assignment: Codex · "ai-cost-dashboard" · 01a16549-f1da-7070-8cdc-4c1e96056b2a
 
 The seven-day scale compressed newly collected readings into what looked like
 single dots. Default to Recorded history on a shared calendar-time axis fitted to

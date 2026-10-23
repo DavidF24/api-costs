@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { PlanUsage } from "@/lib/plans";
-import { DAY, WEEK_DAYS, weeklySeries, weeklyValueAt, recordedLinePath, sampleMarkers, recordedDomain, recordedValueAt } from "@/lib/plans/week-trend";
+import { DAY, WEEK_DAYS, weeklySeries, weeklyValueAt, recordedLinePath, sampleMarkers, recordedDomain, recordedValueAt, inspectSampleTime } from "@/lib/plans/week-trend";
 import { formatClockTime } from "@/lib/format";
 
 const SERIES = {
@@ -36,6 +36,7 @@ export function WeekTrend({ plans, now }: { plans: PlanUsage[]; now: number }) {
   const x = (day: number) => M.left + (day / WEEK_DAYS) * plotW;
   const y = (pct: number) => M.top + (1 - Math.min(100, pct) / 100) * plotH;
   const rawSeries = useMemo(() => weeklySeries(plans, nowSec), [plans, nowSec]);
+  const sampleTimes = useMemo(() => [...new Set(rawSeries.flatMap((s) => s.points.map((p) => p.at)))].sort((a, b) => a - b), [rawSeries]);
   const domain = useMemo(() => recordedDomain(rawSeries, nowSec), [rawSeries, nowSec]);
   const position = (start: number, at: number) => view === "history"
     ? WEEK_DAYS * (at - domain.from) / (domain.to - domain.from) : (at - start) / DAY;
@@ -89,21 +90,29 @@ export function WeekTrend({ plans, now }: { plans: PlanUsage[]; now: number }) {
           onPointerMove={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
             const day = ((e.clientX - rect.left - M.left) / plotW) * WEEK_DAYS;
-            setHoverPosition(day >= 0 && day <= WEEK_DAYS ? day : null);
+            if (day < 0 || day > WEEK_DAYS) return setHoverPosition(null);
+            const at = domain.from + day / 7 * (domain.to - domain.from);
+            const snapped = inspectSampleTime(sampleTimes, at, "nearest", 6 / plotW * (domain.to - domain.from));
+            setHoverPosition(view === "history" && snapped !== null ? position(0, snapped) : day);
           }} onPointerLeave={() => setHoverPosition(null)} onBlur={() => setHoverPosition(null)}
           onKeyDown={(e) => {
             if (e.key === "Escape") setHoverPosition(null);
             if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
               e.preventDefault();
-              setHoverPosition((d) => Math.max(0, Math.min(7, (d ?? 0) + (e.key === "ArrowRight" ? 0.125 : -0.125))));
+              setHoverPosition((d) => {
+                if (view === "week") return Math.max(0, Math.min(7, (d ?? 0) + (e.key === "ArrowRight" ? 0.125 : -0.125)));
+                const at = d === null ? null : domain.from + d / 7 * (domain.to - domain.from);
+                const next = inspectSampleTime(sampleTimes, at, e.key === "ArrowRight" ? "next" : "previous");
+                return next === null ? null : position(0, next);
+              });
             }
           }}>
           {[0, 25, 50, 75, 100].map((pct) => <g key={pct}>
             <line x1={M.left} x2={M.left + plotW} y1={y(pct)} y2={y(pct)} stroke="var(--card-border)" />
             <text x={M.left - 8} y={y(pct) + 4} textAnchor="end" className="fill-muted text-[11px] tabular-nums">{pct}%</text>
           </g>)}
-          {view === "history" ? Array.from({ length: width < 500 ? 3 : 5 }, (_, i) => {
-            const count = width < 500 ? 3 : 5;
+          {view === "history" ? Array.from({ length: width < 400 ? 2 : width < 500 ? 3 : 5 }, (_, i) => {
+            const count = width < 400 ? 2 : width < 500 ? 3 : 5;
             const fraction = i / (count - 1);
             const at = domain.from + fraction * (domain.to - domain.from);
             return <text key={i} x={x(fraction * 7)} y={HEIGHT - 6} textAnchor={i === 0 ? "start" : i === count - 1 ? "end" : "middle"} className="fill-muted text-[11px]">

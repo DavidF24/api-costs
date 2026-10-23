@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { windowTrend, type PlanUsage, type TrendPoint } from "../src/lib/plans/parse.ts";
-import { DAY, weeklySeries, weeklyValueAt, recordedLinePath, sampleMarkers, recordedDomain, recordedValueAt } from "../src/lib/plans/week-trend.ts";
+import { DAY, weeklySeries, weeklyValueAt, recordedLinePath, sampleMarkers, recordedDomain, recordedValueAt, inspectSampleTime } from "../src/lib/plans/week-trend.ts";
 
 const start = 1_000_000;
 const end = start + 7 * DAY;
@@ -116,4 +116,25 @@ test("recorded tooltip values stay real and never interpolate or forecast", () =
   assert.deepEqual(recordedValueAt(s, start + 1.5 * DAY), { at: start + DAY, used: 10, kind: "recorded" });
   assert.equal(recordedValueAt(s, start + 3 * DAY), null);
   assert.equal(recordedValueAt(s, start), null);
+});
+
+
+test("history keyboard inspection reaches every saved sample and both endpoints", () => {
+  const [s] = weeklySeries([plan([{ at: start + DAY, used: 10 }, { at: start + 2 * DAY, used: 50 }])], start + 3 * DAY);
+  const times = s.points.map((p) => p.at);
+  const first = inspectSampleTime(times, null, "next")!;
+  const last = inspectSampleTime(times, first, "next")!;
+  assert.deepEqual(recordedValueAt(s, first), { at: first, used: 10, kind: "recorded" });
+  assert.deepEqual(recordedValueAt(s, last + 1e-7), { at: last, used: 50, kind: "recorded" });
+  assert.equal(inspectSampleTime(times, last, "next"), last);
+  assert.equal(inspectSampleTime(times, last, "previous"), first);
+  assert.equal(inspectSampleTime(times, null, "previous"), last);
+});
+
+test("pointer inspection snaps near a lone sample but leaves distant gaps unknown", () => {
+  assert.equal(inspectSampleTime([123], 123.001, "nearest", 0.1), 123);
+  assert.equal(inspectSampleTime([123], 122, "nearest", 0.1), 122);
+  assert.equal(inspectSampleTime([123], null, "next"), 123);
+  assert.equal(inspectSampleTime([], 123, "nearest", 1), null);
+  assert.equal(inspectSampleTime([10, 20, 30], 24, "nearest", 5), 20);
 });
