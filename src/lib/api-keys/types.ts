@@ -5,7 +5,7 @@ export type KeyMetadata = {
   status: string; project: string; createdAt: string | null; lastUsedAt: string | null;
 };
 export type KeyUsage = { keyId: string; date: string; model: string; input: number; output: number; requests: number | null; cost: number | null };
-export type KeyBatch = { provider: KeyProvider; account: string; phase: "inventory" | "usage"; keys?: KeyMetadata[]; usage?: KeyUsage[]; dates?: string[] };
+export type KeyBatch = { provider: KeyProvider; account: string; phase: "inventory" | "usage"; keys?: KeyMetadata[]; usage?: KeyUsage[]; dates?: string[]; coverageKeyIds?: string[] };
 export type KeyStatus = { provider: string; account: string; phase: string; ok: number; message: string; attemptedAt: string; succeededAt: string | null };
 export type KeyRecord = KeyMetadata & { id: string; provider: string; account: string; alias: string; usedIn: string; note: string; seenAt: string; input: number; output: number; requests: number | null; cost: number | null; days: number };
 export type KeyView = { keys: KeyRecord[]; statuses: KeyStatus[]; daily: (KeyUsage & { id: string })[] };

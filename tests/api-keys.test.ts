@@ -115,3 +115,12 @@ test("aggregation preserves unknown cost instead of fabricating zero", () => {
   const rows=aggregateUsage([{keyId:"key",date:"2026-10-20",model:"m",input:10,output:3,requests:null,cost:null},{keyId:"key",date:"2026-10-20",model:"m",input:2,output:1,requests:null,cost:null}]);
   assert.equal(rows[0].input,12);assert.equal(rows[0].cost,null);assert.equal(rows[0].requests,null);
 });
+
+test("OpenRouter refresh preserves deleted key history and corrects only the key hashes actually fetched", () => {
+  const db=fixture(); const batch:KeyBatch={provider:"openrouter",account:"workspace",phase:"usage",dates:["2026-10-20"],usage:[
+    {keyId:"deleted-key",date:"2026-10-20",model:"m",input:100,output:20,requests:2,cost:1},
+    {keyId:"live-key",date:"2026-10-20",model:"m",input:100,output:20,requests:2,cost:1}]};
+  saveKeyBatch(db,batch);saveKeyBatch(db,{...batch,coverageKeyIds:["live-key"],usage:[]});
+  const view=readKeys(db,"2026-10-01","2026-11-01");assert.equal(view.daily.length,1);assert.equal(view.keys.find((k)=>k.keyId==="deleted-key")!.cost,1);
+  saveKeyBatch(db,{...batch,coverageKeyIds:[],usage:[]});assert.equal(readKeys(db,"2026-10-01","2026-11-01").daily.length,1);db.close();
+});

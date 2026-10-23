@@ -154,7 +154,7 @@ export async function collectKeys(provider: KeyProvider, sink: KeySink, now = ne
           usage.push({ keyId: key.keyId, date, model: safeText(row.model) || "unknown", input: number(row.prompt_tokens), output: number(row.completion_tokens), requests: number(row.requests), cost: number(row.usage) });
         }
       }
-      return { usage: aggregateUsage(usage), dates };
+      return { usage: aggregateUsage(usage), dates, coverageKeyIds: inventory.keys!.map((key) => key.keyId) };
     }, "Reported OpenRouter cost and tokens for the last 30 completed UTC days. External BYOK charges excluded.");
   } else if (provider === "xai" && process.env.XAI_MANAGEMENT_KEY && process.env.XAI_TEAM_ID) {
     const account = safeText(process.env.XAI_TEAM_ID); const headers = { Authorization: `Bearer ${process.env.XAI_MANAGEMENT_KEY}` };

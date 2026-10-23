@@ -35,7 +35,12 @@ export function saveKeyBatch(db: Database.Database, batch: KeyBatch, now = new D
     } else {
       // Delete only complete returned UTC buckets. Older history is never pruned.
       const remove = db.prepare(`DELETE FROM api_key_usage WHERE date=? AND id IN (SELECT id FROM api_keys WHERE provider=? AND account=?)`);
-      for (const date of new Set(batch.dates ?? [])) remove.run(date, batch.provider, batch.account);
+      const removeKey = db.prepare(`DELETE FROM api_key_usage WHERE date=? AND id=?`);
+      for (const date of new Set(batch.dates ?? [])) {
+        if (batch.coverageKeyIds) {
+          for (const keyId of new Set(batch.coverageKeyIds)) removeKey.run(date, recordId(batch.provider, batch.account, keyId));
+        } else remove.run(date, batch.provider, batch.account);
+      }
       const ensure = db.prepare(`INSERT INTO api_keys(id,provider,account,key_id,hint,hint_kind,seen_at)
         VALUES (?,?,?,?,?,'id',?) ON CONFLICT(id) DO NOTHING`);
       const put = db.prepare(`INSERT INTO api_key_usage (id,date,model,input,output,requests,cost) VALUES (@id,@date,@model,@input,@output,@requests,@cost)
