@@ -241,7 +241,8 @@ export function WeekTrend({ plans, now }: { plans: PlanUsage[]; now: number }) {
         )}
       </div>
 
-      <table className="sr-only">
+      <div className="sr-only">
+      <table>
         <caption>Weekly limit used, current week</caption>
         <thead>
           <tr>
@@ -262,6 +263,7 @@ export function WeekTrend({ plans, now }: { plans: PlanUsage[]; now: number }) {
           ))}
         </tbody>
       </table>
+      </div>
     </article>
   );
 }

@@ -208,5 +208,11 @@ scope state survive tab switches and automatic refreshes.
 Validation in progress: all 68 tests and TypeScript pass. Full lint has zero errors
 and the existing OpenRouter unused-variable warning. Six synthetic tests cover
 Grok prices/cache handling, old NULL-price history, unknown models, Bot exclusion,
-source partitioning and separate billed/estimated totals. Production build, live
-browser verification and fresh independent review follow before merge.
+source partitioning and separate billed/estimated totals. The production build passed. A fresh GPT-6-Astra reviewer marked 208fc0a Ready
+with no findings. Browser checks confirm all three tabs, API-only model filtering,
+range changes, keyboard navigation and preserved range/scope state. A read-only
+endpoint/database comparison confirms old Grok rows reprice correctly and API totals
+match billing records. The 320px check exposed an existing screen-reader-only weekly
+table extending the page width; wrap the table in a clipped sr-only div so assistive
+content stays available without causing horizontal page overflow. Correction recheck
+and final narrow-screen verification follow.
