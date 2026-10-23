@@ -182,6 +182,18 @@ body {
   .plan-gauges > .gauge-slot + .gauge-slot { padding-left: 0.75rem; }
 }
 
+
+@media (max-width: 360px) {
+  .subscription-readings, .plan-gauges { grid-template-columns: minmax(0, 1fr); }
+  .subscription-readings > .plan-reading + .plan-reading,
+  .plan-gauges > .gauge-slot + .gauge-slot {
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px solid var(--card-border);
+    padding-top: 1rem;
+  }
+}
+
 /* Tools used: four ranked lists in one panel, hairline-separated like the plan cluster. */
 .tools-panel {
   display: grid;
