@@ -22,3 +22,24 @@ Validation:
 
 Independent review: Ready for implementation commit ad1af64, with no blocking
 findings. A fresh GPT-6-Astra reviewer checked the source and tests read-only.
+
+
+# Claude desktop quota status
+
+Assignment: Codex · "Set up api-costs spend tracker" · 01a16549-f1da-7070-8cdc-4c1e96056b2a
+
+The missing-Claude message promised a reading after any Claude Code reply, but the
+collector runs from the interactive terminal status line. Desktop-only Code turns
+do not invoke it. The missing and empty-state messages now name the terminal source
+and its desktop limitation. Documentation explains the difference between activity
+logs, subscription quota, and xAI API billing. The user requested automatic sources
+only, so no manual subscription cards or snapshots were added.
+
+Validation: all 40 existing tests and targeted ESLint passed. The production build
+passed with the existing filesystem tracing warning. The worktree initially needed
+a local dependency copy instead of a symlink; an initial database-lock build failure
+cleared on retry after database initialization. No dependency or database schema
+changes were made.
+
+Independent review: a fresh GPT-6-Astra reviewer marked implementation commit
+`b70382f` Ready with no blocking findings.

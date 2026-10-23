@@ -8,13 +8,16 @@ const STATE_PATH =
   process.env.CLAUDE_USAGE_STATE ??
   join(homedir(), ".local", "state", "ai-usage", "claude-rate-limits.json");
 
+const MISSING_MESSAGE =
+  "No terminal reading yet. Automatic capture uses the Claude Code terminal status line; Claude desktop replies do not update it.";
+
 export function getClaudeUsage(nowSec = Date.now() / 1000): PlanUsage {
   const base = {
     id: "claude" as const,
     name: "Claude Max",
     windows: [],
     updatedAt: null,
-    note: "The Fable weekly limit and credit balances aren't available on this Mac.",
+    note: "Model-specific weekly limits and credit balances are not included in this source.",
   };
 
   let state: ClaudeState;
@@ -26,14 +29,14 @@ export function getClaudeUsage(nowSec = Date.now() / 1000): PlanUsage {
       ...base,
       status: missing ? "missing" : "error",
       message: missing
-        ? "No Claude usage recorded yet. It shows up after your next Claude Code reply on this Mac."
+        ? MISSING_MESSAGE
         : `Couldn't read ${STATE_PATH}.`,
     };
   }
 
   const windows = claudeWindows(state, nowSec);
   if (windows.length === 0) {
-    return { ...base, status: "missing", message: "No Claude usage recorded yet." };
+    return { ...base, status: "missing", message: MISSING_MESSAGE };
   }
   return { ...base, status: "ok", windows, updatedAt: newestUpdate(windows) };
 }
