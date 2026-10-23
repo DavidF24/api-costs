@@ -311,3 +311,19 @@ inspection within six pixels, with regression tests for final and lone samples.
 The correction recheck was Ready with no remaining actionable findings. Review
 used only source and synthetic tests; no credentials or private histories.
 No CI, secrets, collection, retention or billing changes; no new cost.
+
+# API key inventory and attributed usage
+
+Assignment: Codex · "ai-cost-dashboard" · 01a16549-f1da-7070-8cdc-4c1e96056b2a
+
+Add a read-only inventory in API spend with provider names, masked key hints (or
+explicitly labelled key IDs/hashes), local names, usage locations, notes and key
+filters. Store inventory, annotations, daily attributed usage and source status in
+additive SQLite tables; refreshes preserve annotations and older history. Existing
+billing totals remain separate. OpenAI and Anthropic supply token attribution;
+OpenRouter supplies attributed reported cost and tokens. xAI metadata collection
+is implemented, with per-key usage not integrated. Access failures retain saved
+records and show a separate inventory/usage status. No credential permissions are
+changed and no provider key writes are made.
+
+Validation and independent review pending.

@@ -25,6 +25,7 @@ import { DateRangePicker } from "./DateRangePicker";
 import { ProviderFilter } from "./ProviderFilter";
 import { SyncBar } from "./SyncBar";
 import { SyncHistory } from "./SyncHistory";
+import { ApiKeys } from "./ApiKeys";
 
 type DashboardData = {
   summary: PeriodSummaryType;
@@ -215,6 +216,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
 
       </section>
 
+        <ApiKeys start={rangeStart} end={queryEnd} provider={activeProvider} onProviderChange={setActiveProvider} active={tab === "api"} serverNow={data.serverNow} />
         <SyncHistory />
       </div>
 
