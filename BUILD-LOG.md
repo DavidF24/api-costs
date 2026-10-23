@@ -43,3 +43,34 @@ changes were made.
 
 Independent review: a fresh GPT-6-Astra reviewer marked implementation commit
 `b70382f` Ready with no blocking findings.
+
+
+# Local-tools installation and macOS launcher
+
+Assignment: Codex · "Set up api-costs spend tracker" · 01a16549-f1da-7070-8cdc-4c1e96056b2a
+
+The user requested the installed program in code/local-tools and a clickable entry
+point independent of Codex. The macOS installer creates AI Usage.app beside the
+source and a private per-user LaunchAgent using the installation's current path.
+The launcher loads or starts that service when needed, waits for HTTP readiness,
+and opens the dashboard. Existing services are reused; --no-open supports local
+verification. Generated bundles remain ignored.
+
+Validation:
+
+- Bash syntax checks and git diff --check passed.
+- The installed program was moved to code/local-tools/api-costs, linked Git
+  worktrees were repaired, and the existing Claude terminal collector and reserved
+  port record were updated to the new path.
+- Production build and all 40 existing tests passed in the moved installation.
+  The existing Turbopack filesystem tracing and Node module-type warnings remain.
+- Both generated property lists passed plutil validation. An unloaded-service
+  launch with --no-open reached HTTP readiness. A real Finder double-click on the
+  Desktop app also started the unloaded service and opened the dashboard in Chrome.
+- Repeated launch reused the same healthy service PID. The private key file and
+  service configuration remain mode 0600, the data directory 0700, and SQLite
+  integrity_check returned ok.
+
+Independent review: a fresh GPT-6-Astra reviewer marked implementation commit
+49513c6 Ready with no actionable findings. The generated app contains no credentials;
+it calls the installed launcher script.

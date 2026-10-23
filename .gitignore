@@ -55,3 +55,6 @@ data/*.db
 
 # local planning notes
 docs/plans/
+
+# generated macOS launcher
+/AI Usage.app/
