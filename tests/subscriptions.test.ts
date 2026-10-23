@@ -81,3 +81,13 @@ test("Grok Bot: recurring paid allowance is separate; trial expiry and absent us
   assert.equal(parseBotUsage({ ...bot, usagePercent: undefined }, now), null);
   assert.equal(parseBotUsage({ ...bot, hasNonZeroIncludedLimit: false, sandTrialExpiresAt: bot.nextResetTimestampUtc }, now), null);
 });
+
+
+test("Grok and Bot: malformed period dates cannot create an ok reading or suppress fallback", () => {
+  const start = new Date((now - 100) * 1000).toISOString();
+  const end = new Date((now + 604700) * 1000).toISOString();
+  for (const dates of [["invalid", end], [start, "invalid"], ["invalid", "invalid"]]) {
+    assert.equal(parseGrokREST({ config: { creditUsagePercent: 0, currentPeriod: { type: "USAGE_PERIOD_TYPE_WEEKLY", start: dates[0], end: dates[1] } } }, now), null);
+  }
+  assert.equal(parseBotUsage({ hasNonZeroIncludedLimit: true, usagePercent: 0, nextResetTimestampUtc: "invalid" }, now), null);
+});

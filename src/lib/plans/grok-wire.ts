@@ -46,7 +46,7 @@ function timestamp(fs: Field[], n: number): number | null {
 }
 export type BillingReading = { used: number; start: number; end: number; minutes: number };
 function reading(used: unknown, start: number | null, end: number | null, now: number): BillingReading | null {
-  if (typeof used !== "number" || !Number.isFinite(used) || used < 0 || used > 100 || start === null || end === null || start > now || end <= now || end <= start) return null;
+  if (typeof used !== "number" || !Number.isFinite(used) || used < 0 || used > 100 || start === null || end === null || !Number.isFinite(start) || !Number.isFinite(end) || start > now || end <= now || end <= start) return null;
   const minutes = Math.round((end - start) / 60);
   if (minutes < 1 || minutes > 31 * 1440) return null;
   return { used, start, end, minutes };

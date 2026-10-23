@@ -27,18 +27,20 @@ export async function quotaBody(r: Response): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-type CacheEntry = { until: number; promise: Promise<PlanUsage> };
+type CacheEntry = { until: number; promise: Promise<PlanUsage>; value?: PlanUsage };
 const globalCache = globalThis as typeof globalThis & { subscriptionReadings?: Map<string, CacheEntry> };
 export function cachedQuota(key: string, load: () => Promise<PlanUsage>): Promise<PlanUsage> {
   const cache = globalCache.subscriptionReadings ??= new Map();
   for (const [oldKey, entry] of cache) if (entry.until <= Date.now()) cache.delete(oldKey);
   const current = cache.get(key);
   if (current && current.until > Date.now()) return current.promise;
-  const promise = load(); cache.set(key, { until: Date.now() + 60000, promise });
-  return promise;
+  const entry: CacheEntry = { until: Date.now() + 60000, promise: Promise.resolve(unavailable("grok", "Grok subscription", "Refreshing usage…")) };
+  entry.promise = load().then(value => { entry.value = value; return value; });
+  cache.set(key, entry);
+  return entry.promise;
 }
 
-export function getGrokUsage(): Promise<PlanUsage> {
+function grokCredential(): { token: string; fingerprint: string } | null {
   let token: string, expires: number;
   try {
     const path = join(homedir(), ".grok", "auth.json");
@@ -48,8 +50,20 @@ export function getGrokUsage(): Promise<PlanUsage> {
     if (candidates.length !== 1) throw Error();
     token = candidates[0].key as string; expires = Date.parse(String(candidates[0].expires_at)) / 1000;
     if (!Number.isFinite(expires) || expires <= Date.now() / 1000 + 30) throw Error();
-  } catch { return Promise.resolve(unavailable("grok", "Grok subscription", "Sign in with the Grok CLI on this Mac to refresh its existing login. API billing keys do not supply subscription usage.")); }
-  const fingerprint = createHash("sha256").update(token).digest("hex");
+  } catch { return null; }
+  return { token, fingerprint: createHash("sha256").update(token).digest("hex") };
+}
+const LOGIN_MESSAGE = "Sign in with the Grok CLI on this Mac to refresh its existing login. API billing keys do not supply subscription usage.";
+export function getCachedGrokUsage(): PlanUsage {
+  const credential = grokCredential();
+  if (!credential) return unavailable("grok", "Grok subscription", LOGIN_MESSAGE);
+  const entry = globalCache.subscriptionReadings?.get(`grok:${credential.fingerprint}`);
+  return entry?.value && entry.until > Date.now() ? entry.value : unavailable("grok", "Grok subscription", "Refreshing subscription usage…");
+}
+export function getGrokUsage(): Promise<PlanUsage> {
+  const credential = grokCredential();
+  if (!credential) return Promise.resolve(unavailable("grok", "Grok subscription", LOGIN_MESSAGE));
+  const { token, fingerprint } = credential;
   return cachedQuota(`grok:${fingerprint}`, async () => {
     const now = Date.now() / 1000;
     try {

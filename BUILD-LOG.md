@@ -101,4 +101,7 @@ Live read-only probes returned Claude Desktop 33% session / 61% weekly, and Grok
 0% weekly, with provider reset times; no credentials or raw private responses were
 printed or saved. Added a Refresh usage control; automatic reads continue each minute.
 
-Independent review pending.
+Initial independent review found malformed-date acceptance and optional network reads
+delaying the initial page. Corrections reject non-finite period bounds and keep
+initial rendering synchronous with local/cached readings. The client refreshes
+network-backed usage immediately after mount. Correction review pending.

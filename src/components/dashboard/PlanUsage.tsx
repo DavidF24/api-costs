@@ -36,6 +36,7 @@ export function PlanUsage({ initial, serverNow }: Props) {
       }
     }
     refreshRef.current = refresh;
+    const initialRefresh = setTimeout(refresh, 0);
     const timer = setInterval(refresh, REFRESH_MS);
     const clock = setInterval(() => setNow(Date.now()), 15_000);
     const onFocus = () => refresh();
@@ -43,6 +44,7 @@ export function PlanUsage({ initial, serverNow }: Props) {
     return () => {
       cancelled = true;
       refreshRef.current = null;
+      clearTimeout(initialRefresh);
       clearInterval(timer);
       clearInterval(clock);
       window.removeEventListener("focus", onFocus);
