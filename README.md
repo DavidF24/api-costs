@@ -52,9 +52,9 @@ Both sources are local files; no API keys or network calls.
 | Plan | Source | Windows |
 |------|--------|---------|
 | ChatGPT Codex | Rate-limit snapshots Codex writes to `~/.codex/sessions/**/rollout-*.jsonl` (override with `CODEX_HOME`), or a direct probe recorded to `~/.local/state/ai-usage/codex-rate-limits.json` if one exists; the newer reading wins | Whatever the plan reports, e.g. weekly, or 5-hour + weekly |
-| Claude (Pro/Max) | `scripts/claude-statusline.sh`, run as the Claude Code status line, records the `rate_limits` field to `~/.local/state/ai-usage/claude-rate-limits.json` (override with `CLAUDE_USAGE_STATE`) | 5-hour and weekly |
+| Claude (Pro/Max) | `scripts/claude-statusline.sh`, run as the Claude Code terminal status line, records the `rate_limits` field to `~/.local/state/ai-usage/claude-rate-limits.json` (override with `CLAUDE_USAGE_STATE`) | 5-hour and weekly |
 
-To enable the Claude side, add to your Claude Code settings (use an absolute path, and repeat
+To enable the Claude terminal source, add to your Claude Code settings (use an absolute path, and repeat
 for each `CLAUDE_CONFIG_DIR` you use):
 
 ```json
@@ -62,9 +62,15 @@ for each `CLAUDE_CONFIG_DIR` you use):
 ```
 
 Requires `jq`. The status line also prints model, context used and both plan percentages.
-Readings update only when Claude Code or Codex runs on this machine; usage from other
-machines or the web apps shows up at the next local reading. Model-specific weekly limits
-and credit balances are not in either source.
+Claude capture requires an interactive Claude Code terminal session using that status line.
+Claude desktop Code replies do not run this reader, so desktop-only activity will not
+populate its plan gauges. Local Claude activity logs still populate the Activity panel.
+Codex quota readings come from its local session logs or an existing quota probe.
+Account usage from other surfaces appears when the corresponding local source records
+a new reading. Model-specific weekly limits and credit balances are not in either source.
+
+Grok subscription quotas are not integrated. The xAI / Grok provider reports API billing
+only; its management key does not supply SuperGrok subscription allowance readings.
 
 `npm test` runs the parser and status line tests.
 
