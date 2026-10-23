@@ -326,4 +326,22 @@ is implemented, with per-key usage not integrated. Access failures retain saved
 records and show a separate inventory/usage status. No credential permissions are
 changed and no provider key writes are made.
 
-Validation and independent review pending.
+Validation: all 104 tests, TypeScript, lint and production build pass (zero lint
+errors, one pre-existing OpenRouter unused-variable warning, existing Turbopack
+filesystem tracing warning). A read-only live probe retrieved 18 Anthropic keys,
+4 OpenRouter keys and daily attributed usage without printing credentials. Both
+OpenAI organizations returned no attributed text-generation usage in the last
+90 days; their inventory and xAI inventory return HTTP 403 with current scopes.
+No permissions have been broadened. The production preview has its own SQLite
+copy, no billing credentials and both background schedulers disabled. Browser
+checks verify key search, individual selection, saving all three annotation fields
+and persistence after reload.
+
+The fresh GPT-6-Astra review identified two issues: replacement of OpenRouter
+buckets could erase history for keys no longer listed upstream, and expired xAI /
+OpenRouter keys could appear active. Both corrections have regression tests and
+were rechecked. Browser verification also found Next normalizes request.url to
+localhost while the actual Host/Origin may be 127.0.0.1; the local request guard
+now validates the actual loopback Host before comparing Origin, with allow/deny
+regressions. The reviewer marked implementation d6c46a4 Ready after recheck, with
+no remaining blockers. No CI, secrets or dependencies change; no new cost.
