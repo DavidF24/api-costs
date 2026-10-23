@@ -84,7 +84,7 @@ test("codex: ai-quota windows are keyed by length, with reset and rejected handl
   assert.deepEqual(aiQuotaCodexWindows({}, 1791331000), []);
 });
 
-test("trend: keeps this window's readings, starts at zero, drops stale re-sends", () => {
+test("trend: keeps real readings in this reset period, including later corrections", () => {
   const resetsAt = 1_000_000 + 7 * 86400;
   const row = (at: number, used: number, extra: object = {}) =>
     JSON.stringify({ at, provider: "codex", minutes: 10080, resets_at: resetsAt, used, ...extra });
@@ -92,7 +92,7 @@ test("trend: keeps this window's readings, starts at zero, drops stale re-sends"
     row(999_000, 90, { resets_at: 1_000_000 }), // previous window
     row(1_000_000 + 3600, 2),
     row(1_000_000 + 7200, 5),
-    row(1_000_000 + 9000, 4), // stale re-send
+    row(1_000_000 + 9000, 4), // later provider correction
     row(1_000_000 + 9500, 50, { provider: "claude" }),
     row(1_000_000 + 9600, 50, { minutes: 300 }),
     "{broken",
@@ -102,7 +102,7 @@ test("trend: keeps this window's readings, starts at zero, drops stale re-sends"
     updatedAt: new Date((1_000_000 + 10_000) * 1000).toISOString(), reset: false,
   };
   assert.deepEqual(windowTrend(jsonl, "codex", w).map((p) => [p.at - 1_000_000, p.used]), [
-    [0, 0], [3600, 2], [7200, 5], [10_000, 6],
+    [3600, 2], [7200, 5], [9000, 4], [10_000, 6],
   ]);
   assert.deepEqual(windowTrend(jsonl, "codex", { ...w, reset: true }), []);
 });
