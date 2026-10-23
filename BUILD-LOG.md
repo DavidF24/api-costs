@@ -151,3 +151,20 @@ at 320px. The initial independent review found a narrow-screen overflow; the
 correction stacks grouped readings at 360px and below and uses horizontal dividers.
 The fresh GPT-6-Astra reviewer rechecked implementation d240feb and marked Ready
 with no remaining actionable findings. Collection and refresh behavior are unchanged.
+
+
+# Grok and Grok Bot activity history
+
+Assignment: Codex · "Set up api-costs spend tracker" · 01a16549-f1da-7070-8cdc-4c1e96056b2a
+
+Add automatic daily message heatmaps for Grok CLI and Grok Bot desktop alongside
+Claude Code and Codex. Read only known local update logs and transcript replicas.
+Deduplicate streaming messages, completed-turn usage, moved sessions and replica
+entries; exclude users, reasoning, tools, widgets and approvals from message counts.
+Grok model/token breakdowns feed the existing totals and model list without invented
+API prices. Bot has message metadata only; no token or cost estimate is presented.
+Private message text is neither returned nor persisted. Both heatmaps stay adjacent
+and the copy explains the shared subscription and differing data coverage.
+
+Initial validation: 61 tests passed (9 new synthetic parser/discovery tests).
+Production build, live index and independent review are pending.
