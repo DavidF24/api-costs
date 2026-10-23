@@ -15,7 +15,7 @@ Pulls actual billed amounts from each provider's billing API. No proxies, no est
 - **Model table** -- sortable by cost, model, or provider
 - **Sync now** -- runs the same refresh immediately
 - **Manual entries** -- `POST /api/entries/manual` for providers without a billing API
-- Dark theme, keyboard accessible
+- Light theme with provider icons and bordered subscription cards; Claude’s limits stay together, as do Grok and Grok Bot. Keyboard accessible.
 
 ## Provider support
 
@@ -77,7 +77,7 @@ Grok subscription usage is read from the billing service with the existing
 agent, refresh a login token, or write credentials. If the login expires, sign in
 again with the Grok CLI. Missing, malformed or unavailable data stays unavailable;
 a verified complete active protobuf billing period can report proto3's implicit 0%.
-Grok's subscription pool is separate from Grok Bot's weekly allowance.
+Grok and Grok Bot are grouped in one subscription card. Their usage percentages and reset times remain separate because the provider reports distinct allowances.
 
 Grok Bot on macOS reads only the active account's encrypted access token from
 `~/Library/Application Support/Grok Bot/sand-secrets.json`. With the user's approval,

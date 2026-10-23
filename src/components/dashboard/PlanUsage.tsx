@@ -5,6 +5,7 @@ import type { PlanUsage as PlanUsageType, QuotaWindow } from "@/lib/plans";
 import { applyReset, windowElapsed } from "@/lib/plans/parse";
 import { formatClockTime, formatDuration, formatRelativeTime } from "@/lib/format";
 import { WeekTrend } from "./WeekTrend";
+import { ProviderIcon } from "./ProviderIcon";
 
 const REFRESH_MS = 60_000;
 
@@ -53,55 +54,87 @@ export function PlanUsage({ initial, serverNow }: Props) {
 
   return (
     <section aria-labelledby="plans-heading" className="space-y-3">
-      <div className="flex items-baseline justify-between gap-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
         <h2 id="plans-heading" className="text-base font-semibold">
           Plan limits
         </h2>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <p className="text-xs text-muted">Updates each minute. The notch marks time elapsed.</p>
           <button type="button" disabled={refreshing} onClick={() => refreshRef.current?.()} className="text-xs font-medium text-muted hover:text-foreground disabled:opacity-50" aria-busy={refreshing}>
             {refreshing ? "Refreshing…" : "Refresh usage"}
           </button>
         </div>
       </div>
-      <div className="plan-cluster">
-        {plans.map((plan) => (
-          <PlanGroup key={plan.id} plan={plan} now={now} />
+      <div className="subscription-grid">
+        {plans.filter((p) => p.id === "claude" || p.id === "codex").map((plan) => (
+          <SubscriptionCard key={plan.id} plans={[plan]} now={now} />
         ))}
-        <WeekTrend plans={plans} now={now} />
+        {plans.some((p) => p.id === "grok" || p.id === "grokbot") && (
+          <SubscriptionCard plans={plans.filter((p) => p.id === "grok" || p.id === "grokbot")} now={now} />
+        )}
       </div>
+      <WeekTrend plans={plans} now={now} />
     </section>
   );
 }
 
-function PlanGroup({ plan, now }: { plan: PlanUsageType; now: number }) {
+function SubscriptionCard({ plans, now }: { plans: PlanUsageType[]; now: number }) {
+  const first = plans[0];
+  const grok = first.id === "grok" || first.id === "grokbot";
+  const provider = grok ? "grok" : first.id === "claude" ? "claude" : "codex";
+  const wide = grok || plans.some((p) => p.windows.length > 1) || first.id === "claude";
+  const headingId = `subscription-${provider}`;
+  const subtitle = provider === "claude" ? "Claude Code & Desktop" : provider === "codex" ? "ChatGPT subscription" : "One subscription · two usage views";
+
+  return (
+    <article aria-labelledby={headingId} className={`subscription-card subscription-card--${provider} ${wide ? "subscription-card--wide" : ""}`}>
+      <header className="subscription-heading">
+        <ProviderIcon provider={provider} className="provider-icon" />
+        <div>
+          <h3 id={headingId} className="text-lg font-semibold leading-tight">{grok ? "Grok & Grok Bot" : first.name}</h3>
+          <p className="text-xs text-muted mt-1">{subtitle}</p>
+        </div>
+      </header>
+      <div className={grok ? "subscription-readings" : undefined}>
+        {plans.map((plan) => <PlanReading key={plan.id} plan={plan} now={now} showName={grok} />)}
+      </div>
+    </article>
+  );
+}
+
+function PlanReading({ plan, now, showName }: { plan: PlanUsageType; now: number; showName: boolean }) {
   const updatedMs = plan.updatedAt ? new Date(plan.updatedAt).getTime() : null;
   const stale = updatedMs !== null && now - updatedMs > (plan.staleAfterMinutes ?? 360) * 60000;
 
   return (
-    <article className="plan-group">
-      <header className="mb-3">
-        <h3 className="font-medium leading-tight">{plan.name}</h3>
+    <div className={`plan-reading plan-reading--${plan.id}`}>
+      <div className="mb-3">
+        {showName && <h4 className="text-sm font-semibold">{plan.id === "grokbot" ? "Grok Bot" : "Grok"}</h4>}
         {plan.updatedAt && (
           <p className={`text-xs mt-0.5 ${stale ? "text-warning" : "text-muted"}`}>
             {stale ? "Last reading " : "Updated "}
             {formatRelativeTime(plan.updatedAt, now)}
           </p>
         )}
-      </header>
+      </div>
 
       {plan.status !== "ok" ? (
-        <p className={`text-sm max-w-52 ${plan.status === "error" ? "text-critical" : "text-muted"}`}>{plan.message}</p>
+        <p className={`text-sm ${plan.status === "error" ? "text-critical" : "text-muted"}`}>{plan.message}</p>
       ) : (
-        <div className={`flex gap-6 ${stale ? "opacity-70" : ""}`}>
+        <div className={`plan-gauges ${stale ? "opacity-70" : ""}`}>
           {plan.windows.map((w) => (
-            <Gauge key={w.key} window={w} now={now} />
+            <Gauge key={w.key} window={w} now={now} planName={plan.name} />
           ))}
         </div>
       )}
 
-      {plan.note && plan.status === "ok" && <p className="text-xs text-muted mt-3 max-w-64">{plan.note}</p>}
-    </article>
+      {plan.note && plan.status === "ok" && (
+        <details className="usage-source">
+          <summary>Usage source</summary>
+          <p>{plan.note}</p>
+        </details>
+      )}
+    </div>
   );
 }
 
@@ -118,14 +151,14 @@ function polar(deg: number, radius: number) {
   return { x: SIZE / 2 + radius * Math.cos(rad), y: SIZE / 2 + radius * Math.sin(rad) };
 }
 
-function Gauge({ window: reading, now }: { window: QuotaWindow; now: number }) {
+function Gauge({ window: reading, now, planName }: { window: QuotaWindow; now: number; planName: string }) {
   const nowSec = now / 1000;
   // The window may have reset since this reading was fetched
   const w = applyReset(reading, nowSec);
   const used = w.usedPercent;
   const elapsed = windowElapsed(w, nowSec);
   const level = used === null ? "none" : used >= 90 ? "critical" : used >= 75 ? "warning" : "normal";
-  const fill = { none: "transparent", normal: "var(--meter)", warning: "var(--warning)", critical: "var(--critical)" }[
+  const fill = { none: "transparent", normal: "var(--plan-accent, var(--meter))", warning: "var(--warning)", critical: "var(--critical)" }[
     level
   ];
 
@@ -149,7 +182,7 @@ function Gauge({ window: reading, now }: { window: QuotaWindow; now: number }) {
     <div className="gauge-slot">
       <div
         role="meter"
-        aria-label={`${w.label} limit`}
+        aria-label={`${planName} ${w.label} limit`}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={used ?? undefined}
@@ -206,8 +239,8 @@ function Gauge({ window: reading, now }: { window: QuotaWindow; now: number }) {
           {level === "critical" ? "Near the limit" : "Getting close"}
         </p>
       ) : null}
-      {resetText && <p className="text-xs text-muted mt-1.5 max-w-44">{resetText}</p>}
-      {pace && <p className={`text-xs mt-1 max-w-44 ${pace.warn ? "text-warning" : "text-muted"}`}>{pace.text}</p>}
+      {resetText && <p className="text-xs text-muted mt-1.5 max-w-44 self-start">{resetText}</p>}
+      {pace && <p className={`text-xs mt-1 max-w-44 self-start ${pace.warn ? "text-warning" : "text-muted"}`}>{pace.text}</p>}
     </div>
   );
 }

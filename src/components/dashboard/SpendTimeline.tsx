@@ -185,7 +185,7 @@ export function SpendTimeline({ data, start, end, weekly }: Props) {
               width={48}
             />
             <Tooltip
-              cursor={{ fill: "rgba(255,255,255,0.04)" }}
+              cursor={{ fill: "rgba(37,43,43,0.04)" }}
               content={(props) => (
                 <TooltipCard
                   active={props.active}
