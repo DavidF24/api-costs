@@ -1,4 +1,4 @@
-// Token-to-USD pricing for local Claude Code / Codex activity (per Reference/API/
+// Token-to-USD pricing for local Claude Code / Codex / Grok activity (per Reference/API/
 // MODEL-CATALOG-REFERENCE.md, re-verify there before trusting a number long-term).
 // No imports, same convention as claude-parse.ts / codex-parse.ts.
 //
@@ -106,6 +106,15 @@ export const PRICES: Record<string, ModelPrice> = {
   // gpt-5-mini: $0.25/$2 (line 173), default cache rules.
   "gpt-5-mini": priced(0.25, 2),
 
+  // xAI standard short-context token rates, verified 2026-10-22:
+  // https://docs.x.ai/developers/pricing (updated 2026-10-10).
+  // Local *-build ids use the corresponding public model's baseline. Turn totals
+  // do not expose each request's prompt length or speed tier, so these estimates
+  // exclude long-context / Fast premiums and tool fees. Cache writes use input rates.
+  "grok-4.7": priced(2, 6, { cacheRead: 0.5, cacheWrite5m: 2, cacheWrite1h: 2 }),
+  "grok-4.6": priced(2, 6, { cacheRead: 0.5, cacheWrite5m: 2, cacheWrite1h: 2 }),
+  "grok-4.5": priced(2, 6, { cacheRead: 0.3, cacheWrite5m: 2, cacheWrite1h: 2 }),
+
   // Deliberately NOT priced (return null, per spec): gpt-5.2-codex, gpt-5.1-codex*,
   // gpt-5-codex -- MODEL-CATALOG-REFERENCE's "Codex Family" table (line 204-213) lists these
   // model ids with no price column at all. "codex-auto-review" is not a documented OpenAI
@@ -118,7 +127,7 @@ const SYNTHETIC_MODELS = new Set(["<synthetic>"]);
 export function normalizeModelId(model: string): string {
   let m = model.replace(/\[[^\]]*\]$/, "");
   m = m.replace(/-\d{8}$/, "");
-  return m;
+  return m.replace(/^(grok-4\.[567])-build$/, "$1");
 }
 
 export function estimateCost(model: string, usage: UsageForCost): number | null {
@@ -133,4 +142,12 @@ export function estimateCost(model: string, usage: UsageForCost): number | null 
       usage.cacheWrite1h * price.cacheWrite1h) /
     1_000_000;
   return Number.isFinite(cost) ? cost : null;
+}
+
+// Compute Grok estimates on read as well as on new writes. Existing indexed rows
+// deliberately had NULL prices; deriving from their tokens covers retained history
+// even when the original transcript has been pruned, without reindexing or DB writes.
+export function priceRecordedUsage(source: string, model: string, usage: UsageForCost, recorded: number | null): number | null {
+  if (source === "grok-bot") return null;
+  return source === "grok" ? estimateCost(model, usage) : recorded;
 }

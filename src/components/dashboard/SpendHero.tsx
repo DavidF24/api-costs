@@ -53,7 +53,7 @@ export function SpendHero({ summary, daily, today }: Props) {
     <div className="flex flex-wrap items-end justify-between gap-x-12 gap-y-6">
       <div>
         <p className="text-sm text-muted">This month</p>
-        <div className="flex items-end gap-5 mt-1">
+        <div className="flex flex-wrap items-end gap-5 mt-1">
           <p className="font-display text-6xl font-semibold leading-none tracking-tight">
             {formatCurrency(summary.thisMonth)}
           </p>

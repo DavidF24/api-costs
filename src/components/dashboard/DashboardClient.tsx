@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type {
   PeriodSummary as PeriodSummaryType,
@@ -12,6 +12,7 @@ import type {
 import type { PlanUsage as PlanUsageType } from "@/lib/plans";
 import type { SchedulerState } from "@/lib/scheduler";
 import type { ActivityResult } from "@/lib/activity/queries";
+import { ApiEquivalents } from "./ApiEquivalents";
 import { ActivitySection } from "./ActivitySection";
 import { DEFAULT_RANGE_DAYS, formatCurrency, formatRelativeTime, getProviderLabel } from "@/lib/format";
 import { shiftDate } from "@/lib/timezone";
@@ -47,7 +48,25 @@ const SYNC_BEHIND_MS = 26 * 60 * 60 * 1000;
 // Re-render from the server (router.refresh keeps client state such as the range and filter).
 const PAGE_REFRESH_MS = 2 * 60 * 1000;
 
+const TABS = [{ id: "subscriptions", label: "Subscriptions" }, { id: "api", label: "API spend" }, { id: "activity", label: "Activity" }] as const;
+type Tab = typeof TABS[number]["id"];
+
 export function DashboardClient({ data }: { data: DashboardData }) {
+  const [tab, setTab] = useState<Tab>("subscriptions");
+  const tabButtons = useRef<(HTMLButtonElement | null)[]>([]);
+  useEffect(() => {
+    const readHash = () => {
+      const value = window.location.hash.slice(1);
+      if (TABS.some((t) => t.id === value)) setTab(value as Tab);
+    };
+    const timer = setTimeout(readHash, 0);
+    window.addEventListener("hashchange", readHash);
+    return () => { clearTimeout(timer); window.removeEventListener("hashchange", readHash); };
+  }, []);
+  function selectTab(next: Tab) {
+    setTab(next);
+    window.history.replaceState(null, "", `#${next}`);
+  }
   const [rangeDays, setRangeDays] = useState(DEFAULT_RANGE_DAYS);
   const [activeProvider, setActiveProvider] = useState<string | null>(null);
   // Models for the default range come from the server; other ranges are fetched.
@@ -115,7 +134,19 @@ export function DashboardClient({ data }: { data: DashboardData }) {
         <SyncBar statuses={data.syncStatuses} scheduler={data.scheduler} serverNow={data.serverNow} />
       </header>
 
-      <PlanUsage initial={data.plans} serverNow={data.serverNow} />
+      <div role="tablist" aria-label="Dashboard views" className="flex gap-1 border-b border-card-border">
+        {TABS.map((t, i) => <button key={t.id} ref={(el) => { tabButtons.current[i] = el; }} type="button" role="tab" id={`tab-${t.id}`} aria-controls={`panel-${t.id}`} aria-selected={tab === t.id} tabIndex={tab === t.id ? 0 : -1} onClick={() => selectTab(t.id)} onKeyDown={(e) => {
+          const next = e.key === "ArrowRight" ? (i + 1) % TABS.length : e.key === "ArrowLeft" ? (i + TABS.length - 1) % TABS.length : e.key === "Home" ? 0 : e.key === "End" ? TABS.length - 1 : null;
+          if (next !== null) { e.preventDefault(); selectTab(TABS[next].id); tabButtons.current[next]?.focus(); }
+        }} className={`px-3 sm:px-5 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors ${tab === t.id ? "border-foreground text-foreground" : "border-transparent text-muted hover:text-foreground"}`}>{t.label}</button>)}
+      </div>
+
+      <div id="panel-subscriptions" role="tabpanel" aria-labelledby="tab-subscriptions" hidden={tab !== "subscriptions"} className="space-y-8">
+        <PlanUsage initial={data.plans} serverNow={data.serverNow} />
+        <ApiEquivalents initial={data.activity} year={data.activityYear} today={data.today} serverNow={data.serverNow} />
+      </div>
+
+      <div id="panel-api" role="tabpanel" aria-labelledby="tab-api" hidden={tab !== "api"} className="space-y-8">
 
       <section aria-labelledby="spend-heading" className="space-y-4">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -147,7 +178,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
           <div className="lg:col-span-2 min-w-0 bg-card border border-card-border rounded-xl p-4 sm:p-5">
             <h3 className="text-sm font-medium mb-3">{rangeDays > 90 ? "Weekly spend" : "Daily spend"}</h3>
             <div className="h-72">
-              <SpendTimeline data={rangeDaily} start={rangeStart} end={chartEnd} weekly={rangeDays > 90} />
+              {tab === "api" && <SpendTimeline data={rangeDaily} start={rangeStart} end={chartEnd} weekly={rangeDays > 90} />}
             </div>
             {rangeDaily.some((d) => d.provider === "gemini") && (
               <p className="text-xs text-muted mt-3">
@@ -163,7 +194,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                 {formatCurrency(rangeProviders.reduce((s, p) => s + p.cost, 0))}
               </span>
             </div>
-            <ProviderBreakdown data={rangeProviders} />
+            {tab === "api" && <ProviderBreakdown data={rangeProviders} />}
           </div>
         </div>
 
@@ -184,9 +215,12 @@ export function DashboardClient({ data }: { data: DashboardData }) {
 
       </section>
 
-      <ActivitySection year={data.activityYear} initial={data.activity} today={data.today} serverNow={data.serverNow} />
+        <SyncHistory />
+      </div>
 
-      <SyncHistory />
+      <div id="panel-activity" role="tabpanel" aria-labelledby="tab-activity" hidden={tab !== "activity"}>
+        <ActivitySection year={data.activityYear} initial={data.activity} today={data.today} serverNow={data.serverNow} active={tab === "activity"} />
+      </div>
     </main>
   );
 }

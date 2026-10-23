@@ -173,7 +173,7 @@ function writeFileRows(
     tx.delete(schema.activitySessions).where(eq(schema.activitySessions.path, entry.key)).run();
 
     for (const u of result.usage) {
-      const estCostUsd = entry.source === "grok" || entry.source === "grok-bot" ? null : estimateCost(u.model, u);
+      const estCostUsd = entry.source === "grok-bot" ? null : estimateCost(u.model, u);
       tx.insert(schema.activityUsage)
         .values({
           path: entry.key,

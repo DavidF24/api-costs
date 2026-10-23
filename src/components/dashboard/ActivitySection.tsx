@@ -1,112 +1,72 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { ActivityResult } from "@/lib/activity/queries";
-import { ACTIVITY_DEFAULT_DAYS as DEFAULT_DAYS, formatCompact, formatCurrency, formatInt } from "@/lib/format";
+import { activityStats, scopeModels, type ActivityScope } from "@/lib/activity/view";
+import { formatCompact, formatCurrency, formatInt, getSourceLabel } from "@/lib/format";
 import { shiftDate } from "@/lib/timezone";
-import { DateRangePicker } from "./DateRangePicker";
 import { ActivityHeatmap } from "./ActivityHeatmap";
-import { ToolsPanel } from "./ToolsPanel";
+import { ApiActivityChart } from "./ApiActivityChart";
+import { EstimateNote } from "./ApiEquivalents";
+import { DateRangePicker } from "./DateRangePicker";
 import { ModelsUsed } from "./ModelsUsed";
+import { ToolsPanel } from "./ToolsPanel";
+import { useActivityRange } from "./useActivityRange";
 
+type Props = { year: ActivityResult; initial: ActivityResult; today: string; serverNow: number; active?: boolean };
+const scopes = [{ key: "subscriptions", label: "Subscriptions" }, { key: "api", label: "API" }, { key: "combined", label: "Combined" }] as const;
 
-type Props = {
-  year: ActivityResult; // last 365 days: drives the heatmap and the 1-year range
-  initial: ActivityResult; // last DEFAULT_DAYS
-  today: string;
-  serverNow: number;
-};
-
-const monthDay = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-
-export function ActivitySection({ year, initial, today, serverNow }: Props) {
-  const [days, setDays] = useState(DEFAULT_DAYS);
-  const seed = () => ({ [DEFAULT_DAYS]: initial, 365: year }) as Record<number, ActivityResult | "error">;
-  const [byRange, setByRange] = useState(seed);
-  // New server data (auto-refresh or a sync): drop fetched ranges rather than show stale ones
-  const [stamp, setStamp] = useState(serverNow);
-  if (stamp !== serverNow) {
-    setStamp(serverNow);
-    setByRange(seed());
-  }
-
-  const have = days in byRange;
-  useEffect(() => {
-    if (have) return;
-    let cancelled = false;
-    fetch(`/api/activity?start=${shiftDate(today, -(days - 1))}&end=${shiftDate(today, 1)}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<ActivityResult>;
-      })
-      .then((data) => !cancelled && setByRange((m) => ({ ...m, [days]: data })))
-      .catch(() => !cancelled && setByRange((m) => ({ ...m, [days]: "error" })));
-    return () => {
-      cancelled = true;
-    };
-  }, [have, days, today]);
-
-  const state = byRange[days];
-  const data = state && state !== "error" ? state : null;
-
-  const bySource = { "claude-code": 0, codex: 0 } as Record<string, number>;
-  for (const d of data?.daily ?? []) bySource[d.source] = (bySource[d.source] ?? 0) + d.estCost;
-
-  const start = year.dataStart.claude;
-  const stats = data
-    ? [
-        { label: "Sessions", value: formatInt(data.totals.sessions) },
-        { label: "Messages", value: formatInt(data.totals.messages) },
-        { label: "Recorded output tokens", value: formatCompact(data.totals.output) },
-        { label: "Claude Code at API prices", value: `≈ ${formatCurrency(bySource["claude-code"])}` },
-        { label: "Codex at API prices", value: `≈ ${formatCurrency(bySource.codex)}` },
-      ]
-    : [];
+export function ActivitySection({ year, initial, today, serverNow, active = true }: Props) {
+  const { days, setDays, state, data } = useActivityRange(initial, year, today, serverNow);
+  const [scope, setScope] = useState<ActivityScope>("combined");
+  const view = data ? activityStats(data, scope) : null;
+  const stats = view ? [
+    ...(view.showLocal ? [
+      { label: scope === "combined" ? "Subscription sessions" : "Sessions", value: formatInt(view.sessions ?? 0) },
+      { label: scope === "combined" ? "Subscription messages" : "Messages", value: formatInt(view.messages ?? 0) },
+    ] : [{ label: "Recorded input tokens", value: formatCompact(view.apiInput) }]),
+    { label: "Recorded output tokens", value: formatCompact(view.output) },
+    ...view.estimates.map((e) => ({ label: `${getSourceLabel(e.source)} at API prices`, value: e.tokens > e.unpricedTokens ? `≈ ${formatCurrency(e.cost)}${e.unpricedTokens > 0 ? " +" : ""}` : "Unavailable" })),
+    ...(view.apiCost !== null ? [{ label: "API billed spend", value: formatCurrency(view.apiCost) }] : []),
+  ] : [];
 
   return (
-    <section aria-labelledby="activity-heading" className="space-y-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+    <section aria-labelledby="activity-heading" className="space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 id="activity-heading" className="text-base font-semibold">
-            Activity
-          </h2>
-          <p className="text-xs text-muted mt-0.5">
-            Claude Code, Codex, Grok and Grok Bot on this Mac, plus every API model.
-            {start ? ` Claude Code history starts ${monthDay.format(new Date(`${start}T12:00:00Z`))}.` : ""}
-          </p>
+          <h2 id="activity-heading" className="text-base font-semibold">Activity</h2>
+          <p className="text-xs text-muted mt-1">{scope === "subscriptions" ? "Local Claude Code, Codex, Grok and Grok Bot history on this Mac." : scope === "api" ? "Usage reported by your API providers." : "Subscription history and API usage in one view. Charges and estimates stay separate."}</p>
         </div>
         <DateRangePicker activeDays={days} onChange={setDays} />
       </div>
-
-      <dl className="flex flex-wrap gap-x-10 gap-y-4 min-h-14">
-        {stats.map((s) => (
-          <div key={s.label}>
-            <dt className="text-sm text-muted">{s.label}</dt>
-            <dd className="font-display text-2xl font-semibold mt-0.5">{s.value}</dd>
-          </div>
-        ))}
-        {state === "error" && <p className="text-sm text-critical">Couldn&apos;t load this range. Reload to try again.</p>}
-        {!state && <p className="text-sm text-muted">Loading…</p>}
-      </dl>
-
-      <div className="bg-card border border-card-border rounded-xl p-4 sm:p-5">
-        <h3 className="text-sm font-medium mb-3">Messages per day, last 12 months</h3>
-        <p className="text-xs text-muted mb-4">Automatic local history. Grok and Grok Bot share a subscription; their activity is shown separately below. Grok Bot provides message history, without token counts or API cost estimates.</p>
-        <ActivityHeatmap daily={year.daily} sessions={year.sessions} today={today} dataStart={year.dataStart} />
+      <div role="group" aria-label="Activity source" className="inline-flex max-w-full flex-wrap rounded-lg border border-card-border bg-card p-1 gap-1">
+        {scopes.map((s) => <button key={s.key} type="button" aria-pressed={scope === s.key} onClick={() => setScope(s.key)} className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${scope === s.key ? "bg-foreground text-card" : "text-muted hover:text-foreground"}`}>{s.label}</button>)}
       </div>
-
-      {data && (
-        <>
-          <div>
-            <h3 className="text-sm font-medium mb-2">Tools used</h3>
-            <ToolsPanel tools={data.tools} />
-          </div>
-          <div className="bg-card border border-card-border rounded-xl p-4 sm:p-5">
-            <h3 className="text-sm font-medium mb-3">Models used</h3>
-            <ModelsUsed models={data.models} />
-          </div>
-        </>
-      )}
+      <dl aria-live="polite" className="flex flex-wrap gap-x-9 gap-y-5 min-h-14">
+        {stats.map((s) => <div key={s.label}>
+          <dt className="text-xs text-muted">{s.label}</dt>
+          <dd className="font-display text-2xl font-semibold mt-1">{s.value}</dd>
+        </div>)}
+      </dl>
+      {!data && <p role="status" className={`text-sm ${state === "error" ? "text-critical" : "text-muted"}`}>{state === "error" ? "Couldn't load this range. Reload to try again." : "Loading…"}</p>}
+      {scope !== "api" && <EstimateNote />}
+      {scope === "combined" && <p className="text-xs text-muted">Recorded output tokens combine both sources. Session and message totals cover local subscriptions only; Grok Bot has no token data. A + marks a partial estimate.</p>}
+      {scope !== "api" && <div className="bg-card border border-card-border rounded-xl p-4 sm:p-5">
+        <h3 className="text-sm font-medium mb-3">Messages per day, last 12 months</h3>
+        <p className="text-xs text-muted mb-4">Automatic local history. This calendar always shows the last year; the selected range applies to summaries, tools and models. Grok and Grok Bot share a subscription and appear together below. Bot has message history only.</p>
+        <ActivityHeatmap daily={year.daily} sessions={year.sessions} today={today} dataStart={year.dataStart} />
+      </div>}
+      {data && <>
+        {scope !== "subscriptions" && active && <ApiActivityChart daily={data.apiDaily} start={shiftDate(today, -(days - 1))} end={data.apiDaily.reduce((end, d) => d.date > end ? d.date : end, today)} />}
+        {scope !== "api" && <div>
+          <h3 className="text-sm font-medium mb-2">Tools used · Claude Code & Codex</h3>
+          <ToolsPanel tools={data.tools} />
+        </div>}
+        <div className="bg-card border border-card-border rounded-xl p-4 sm:p-5">
+          <h3 className="text-sm font-medium mb-3">Models used</h3>
+          <div className="overflow-x-auto"><ModelsUsed models={scopeModels(data.models, scope)} /></div>
+        </div>
+      </>}
     </section>
   );
 }
