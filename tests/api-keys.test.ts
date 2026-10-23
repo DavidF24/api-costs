@@ -52,6 +52,8 @@ test("local inventory endpoints reject foreign origins and hosts; date ranges ar
   assert.equal(localKeyRequest(new Request("http://127.0.0.1:4100/api/keys")),true);
   assert.equal(localKeyRequest(new Request("http://localhost:4100/api/keys",{headers:{origin:"http://localhost:4100","sec-fetch-site":"same-origin"}})),true);
   for (const req of [new Request("http://evil.example/api/keys"),new Request("http://127.0.0.1:4100/api/keys",{headers:{origin:"http://evil.example"}}),new Request("http://localhost:4100/api/keys",{headers:{"sec-fetch-site":"cross-site"}})]) assert.equal(localKeyRequest(req),false);
+  assert.equal(localKeyRequest(new Request("http://localhost:5107/api/keys",{headers:{host:"127.0.0.1:5107",origin:"http://127.0.0.1:5107","sec-fetch-site":"same-origin"}})),true);
+  assert.equal(localKeyRequest(new Request("http://localhost:5107/api/keys",{headers:{host:"evil.example",origin:"http://evil.example"}})),false);
   assert.equal(validKeyRange("2026-02-28","2026-03-01"),true); for(const [a,b] of [["2026-02-30","2026-03-01"],["2026-10-10","2026-10-10"],["bad","2026-03-01"]]) assert.equal(validKeyRange(a,b),false);
 });
 test("OpenAI inventory 403 does not suppress usage; both organizations remain isolated and paginate", async () => {

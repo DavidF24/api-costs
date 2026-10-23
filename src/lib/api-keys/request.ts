@@ -3,8 +3,14 @@
 export function localKeyRequest(request: Request): boolean {
   const url = new URL(request.url);
   if (!["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)) return false;
+  // Next's Node server can normalize request.url to localhost while preserving
+  // the browser's actual 127.0.0.1 Host. Validate that Host before comparing Origin.
+  const host = request.headers.get("host") ?? url.host;
+  let actual: URL;
+  try { actual = new URL(`${url.protocol}//${host}`); } catch { return false; }
+  if (!["127.0.0.1", "localhost", "[::1]"].includes(actual.hostname) || actual.host !== host) return false;
   const origin = request.headers.get("origin");
-  if (origin && origin !== url.origin) return false;
+  if (origin && origin !== actual.origin) return false;
   const site = request.headers.get("sec-fetch-site");
   return !site || site === "none" || site === "same-origin";
 }
