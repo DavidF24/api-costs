@@ -299,4 +299,15 @@ forecast, and the coverage disclosure. Tooltip values remain real saved readings
 connecting lines describe changes between samples without inventing observations.
 No source, retention, billing, credential or schema changes.
 
-Validation pending.
+Validation: all 90 tests, TypeScript, lint and production build pass. Lint has
+zero errors and one pre-existing OpenRouter warning. Browser checks verify four
+connected history paths, clock-time labels, Full week forecasts, the average toggle,
+unknown coverage, and keyboard access to the latest actual reading. The 320px
+layout has no page overflow and uses two calendar labels to avoid overlap.
+
+The fresh GPT-6-Astra reviewer found the latest sample was unreachable with fixed
+keyboard increments. Commit 729530e navigates actual timestamps and snaps pointer
+inspection within six pixels, with regression tests for final and lone samples.
+The correction recheck was Ready with no remaining actionable findings. Review
+used only source and synthetic tests; no credentials or private histories.
+No CI, secrets, collection, retention or billing changes; no new cost.
