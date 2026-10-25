@@ -345,7 +345,8 @@ localhost while the actual Host/Origin may be 127.0.0.1; the local request guard
 now validates the actual loopback Host before comparing Origin, with allow/deny
 regressions. The reviewer marked implementation d6c46a4 Ready after recheck, with
 no remaining blockers. No CI, secrets or dependencies change; no new cost.
-\n# Refresh subscription API-equivalent pricing
+
+# Refresh subscription API-equivalent pricing
 
 Assignment: Codex · "ai-cost-dashboard" · 01a16549-f1da-7070-8cdc-4c1e96056b2a
 
@@ -366,4 +367,21 @@ their exact input/cache/output rates. xAI's page verifies Grok 4.7/4.6 $2/$0.50/
 and 4.5 $2/$0.30/$6. Sources are linked in README and the UI. Long-context, speed,
 regional, tool and tax costs cannot be reconstructed from these aggregates.
 
-Validation and independent review pending.
+Validation: all 107 tests, TypeScript, lint and production build pass. Lint has
+one pre-existing OpenRouter unused-variable warning; the production build has the
+existing filesystem tracing warning. A production preview using a private SQLite
+copy and disabled background schedulers displays 7-day and 30-day comparisons,
+current model rates, source links and explicit partial coverage. The read-only
+audit confirms older retained rows acquire estimates without rewriting history.
+
+The fresh GPT-6-Astra reviewer caught documented GPT-5.6 Terra/Luna cache-write
+rates and a partial-subtotal label. Both corrections were applied and rechecked;
+the reviewer marked the result Ready, with no remaining actionable findings.
+Their exact model pages document writes at 1.25x input ($2.50/$0.25 per MTok).
+No CI, secrets, dependencies or billed API data changes; no new provider cost.
+
+Created and verified the active Codex heartbeat `refresh-ai-usage-api-pricing`,
+Mondays at 9 AM America/Chicago, attached to the existing dashboard chat. Its
+prompt audits retained model IDs, verifies official sources including promotion
+expiry dates, follows the review/install workflow and stays quiet if nothing
+meaningful changes. It runs through the Codex automation host, not an app timer.

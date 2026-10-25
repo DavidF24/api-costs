@@ -8,13 +8,15 @@ test("new subscription models use verified Standard rates, including discounted 
   assert.equal(estimateCost("claude-sonnet-5-5", { ...million, cacheWrite1h: 1_000_000 }), 18.6);
   assert.equal(estimateCost("gpt-6.1-sol", million), 14.6);
   assert.equal(estimateCost("gpt-6-luna", million), 0.735);
+  assert.equal(estimateCost("gpt-5.6-terra", million), 16.7);
+  assert.equal(estimateCost("gpt-5.6-luna", million), 1.67);
   assert.equal(estimateCost("gpt-5.2-codex", { ...million, cacheWrite5m: 0 }), 15.925);
   assert.equal(getModelPrice("gpt-6.1-sol")?.cacheRead, 0.1);
   assert.equal(getModelPrice("gpt-6-sol")?.cacheRead, 0.2);
 });
 
 test("unknown categories and invalid counts are never treated as free or assigned fallback prices", () => {
-  assert.equal(estimateCost("gpt-5.6-terra", million), null, "cache writes have no verified rate");
+  assert.equal(estimateCost("gpt-5.2-codex", million), null, "cache writes have no verified rate");
   assert.equal(estimateCost("gpt-6.1-sol", { ...million, cacheWrite1h: 1 }), null);
   assert.equal(estimateCost("gpt-6.1-sol", { ...million, input: -1 }), null);
   assert.equal(estimateCost("gpt-6.1-sol", { ...million, output: NaN }), null);

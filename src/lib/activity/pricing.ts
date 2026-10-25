@@ -64,11 +64,11 @@ export const PRICES: Record<string, ModelPrice> = {
   // Promotional price: official page guarantees at least through 2026-11-21.
   "gpt-5.6-sol": openai(4, 20, 0.4, 5),
   // Older model pages: https://developers.openai.com/api/docs/models/<model-id>
-  // GPT-6 Sol documents cache writes. The other pages below only document
-  // input / cached input / output, so their write rates remain unknown.
+  // GPT-6 Sol and GPT-5.6 Terra/Luna document cache writes at 1.25x input.
+  // Remaining older pages only document input / cached input / output.
   "gpt-6-sol": openai(2, 10, 0.2, 2.5),
-  "gpt-5.6-terra": openai(2, 12, 0.2),
-  "gpt-5.6-luna": openai(0.2, 1.2, 0.02),
+  "gpt-5.6-terra": openai(2, 12, 0.2, 2.5),
+  "gpt-5.6-luna": openai(0.2, 1.2, 0.02, 0.25),
   "gpt-5.4": openai(2.5, 15, 0.25),
   "gpt-5.2": openai(1.75, 14, 0.175),
   "gpt-5.2-codex": openai(1.75, 14, 0.175),

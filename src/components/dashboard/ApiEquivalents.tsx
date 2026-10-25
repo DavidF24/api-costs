@@ -55,7 +55,7 @@ export function ApiEquivalents({ initial, year, today, serverNow }: { initial: A
                 <td className="py-3 pr-5">{rate(p?.cacheRead)}</td>
                 <td className="py-3 pr-5">{rate(p?.cacheWrite5m)} / {rate(p?.cacheWrite1h)}</td>
                 <td className="py-3 pr-5">{rate(p?.output)}</td>
-                <td className="py-3 pr-5">{!p || (m.unpricedTokens ?? 0) > 0 ? "Unpriced" : `≈ ${formatCurrency(m.estCost)}`}</td>
+                <td className="py-3 pr-5">{!p || ((m.unpricedTokens ?? 0) > 0 && m.estCost === 0) ? "Unpriced" : `≈ ${formatCurrency(m.estCost)}${(m.unpricedTokens ?? 0) > 0 ? " (partial)" : ""}`}</td>
               </tr>;
             })}</tbody>
           </table>
