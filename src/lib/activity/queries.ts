@@ -64,7 +64,8 @@ export type ActivityResult = {
 };
 
 // Keep model-level buckets until pricing is applied, then roll up for the UI.
-// This also prices old Grok rows that were indexed before Grok rates were known.
+// Reprice retained subscription tokens at current verified rates, regardless of
+// whether the index-time estimate was missing or used an older price snapshot.
 function getLocalUsage(start: string, end: string) {
   return db.select({
     date: activityUsage.date,
@@ -77,14 +78,13 @@ function getLocalUsage(start: string, end: string) {
     cacheWrite5m: sql<number>`SUM(${activityUsage.cacheWrite5m})`,
     cacheWrite1h: sql<number>`SUM(${activityUsage.cacheWrite1h})`,
     recorded: sql<number | null>`SUM(${activityUsage.estCostUsd})`,
-    unpriced: sql<number>`SUM(CASE WHEN ${activityUsage.estCostUsd} IS NULL THEN ${activityUsage.input} + ${activityUsage.output} + ${activityUsage.cacheRead} + ${activityUsage.cacheWrite5m} + ${activityUsage.cacheWrite1h} ELSE 0 END)`,
   }).from(activityUsage)
     .where(and(gte(activityUsage.date, start), lte(activityUsage.date, end)))
     .groupBy(activityUsage.date, activityUsage.source, activityUsage.model)
     .all().map((r) => {
       const estCost = priceRecordedUsage(r.source, r.model, r, r.recorded);
       const tokens = r.input + r.output + r.cacheRead + r.cacheWrite5m + r.cacheWrite1h;
-      return { ...r, estCost: estCost ?? 0, unpricedTokens: r.source === "grok" ? (estCost === null ? tokens : 0) : r.unpriced };
+      return { ...r, estCost: estCost ?? 0, unpricedTokens: estCost === null ? tokens : 0 };
     });
 }
 

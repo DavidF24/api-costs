@@ -7,7 +7,7 @@ API spend uses actual billed amounts from each provider's billing API. Subscript
 ## What it does
 
 - **Three tabs** -- Subscriptions keeps quotas, This week and API-equivalent estimates together; API spend contains actual billing and sync history; Activity has a Subscriptions / API / Combined source toggle. Each view keeps its own date range while switching tabs. Tab links can be bookmarked using `#subscriptions`, `#api` and `#activity`.
-- **Grok at API prices** -- recorded Grok 4.5/4.6/4.7 tokens use the matching public model's standard short-context input/cache/output rates, including local `-build` labels. Rates verified October 22, 2026 at https://docs.x.ai/developers/pricing. Turn aggregates do not reveal each request's prompt length or speed tier, so long-context / Fast premiums and tool fees are excluded. Retained old rows are priced on read without reindexing. Grok Bot has message history only, so its equivalent is unavailable.
+- **At API prices** -- recorded Claude Code, Codex and Grok tokens are valued at current verified standard API rates, including cache discounts and known cache-write rates. All retained tokens are repriced on read, including history first indexed without a price. Cards show pricing coverage and unpriced model names; expand **Model rates and coverage** to inspect the rates and model estimates. Grok Bot has message history only, so its equivalent is unavailable.
 - **Activity scope** -- the toggle filters models and summary totals. Combined output tokens include recorded local and API output; sessions and messages cover local history only. API activity charts only token counts actually reported by providers. Dollar estimates and billed charges are never added together. The message calendars always cover the last year; the range picker controls summaries, tools, API tokens and model details.
 
 - **Plan limits** -- Claude (Pro/Max), ChatGPT Codex and Grok as dials per window, with reset times, a pace notch and a straight-line projection ("runs out Thu 2 PM"), plus a burn-up chart of each weekly limit against even pace, using the app’s saved quota readings (and an optional legacy `history.jsonl` log)
@@ -136,6 +136,55 @@ for an immediate index, or use local-only `POST /api/activity/index`.
 Costs for Claude Code and Codex are estimates at API list prices (`src/lib/activity/pricing.ts`);
 unpriced models show no cost. Claude Code logs usage per message; Codex logs it only since
 September 2026, so older Codex sessions count toward tools and sessions but not tokens.
+
+### Subscription price comparisons and weekly maintenance
+
+Subscription comparisons answer **what the recorded tokens would cost at today's
+standard API rates**. They do not reconstruct historical invoices or add to API
+billed spend. The reviewed price snapshot and verification date live in
+`src/lib/activity/pricing.ts`; Git retains previous snapshots. Pricing updates apply
+to all retained token aggregates immediately after installing the new build, even
+if the original transcript was pruned. Index-time `est_cost_usd` values are kept in
+SQLite but are no longer the source of displayed subscription comparisons.
+
+Official sources, last checked October 25, 2026:
+
+- Anthropic: https://platform.claude.com/docs/en/about-claude/pricing
+- OpenAI: https://developers.openai.com/api/docs/pricing and the model-specific
+  pages at `https://developers.openai.com/api/docs/models/<model-id>` for older models.
+- xAI: https://docs.x.ai/developers/pricing
+
+Use Standard short-context rates, not Batch/Flex/Fast. Recorded day/model aggregates
+cannot recover every request's prompt length, region, speed tier or paid tool use.
+Long-context, speed and regional premiums, tool fees and taxes are excluded. Cache
+read and write tokens are priced separately; Claude uses its recorded 5m/1h write
+split, while Codex records only short cache writes. An undocumented rate with
+positive usage makes that model bucket unpriced, rather than assuming it is free.
+Known Grok 4.5/4.6/4.7 `-build` labels use their public model's baseline. Internal
+labels such as `codex-auto-review` have no verified public price and stay unpriced.
+Coverage is the share of recorded tokens priced; it cannot measure missing logs or
+Grok Bot tokens that were never provided by the source.
+
+David's local Codex pricing maintenance is scheduled weekly on Mondays at 9 AM
+America/Chicago in the setup chat. This is a Codex automation, not a timer embedded
+in the dashboard; the local host must be available. Its procedure is:
+
+1. Run `node scripts/check-activity-pricing.ts` from the installed app (or pass an
+   explicit SQLite path). This reads retained aggregate token counts only and
+   lists unknown models without opening credentials or transcripts.
+2. Fetch the official pages above and verify exact model IDs, Standard input,
+   cached input, output and cache-write rates. Recheck promotions, especially
+   GPT-5.6 Sol's price guaranteed at least through November 21, 2026. Do not guess
+   a rate for internal labels or substitute another model.
+3. Follow AGENTS/Keel coordination in an isolated worktree. Update the reviewed
+   price snapshot and verification date only for verified data, preserve evidence
+   in the build log, and run tests, lint, TypeScript and a production build. Obtain
+   independent review, merge and install through the normal repository workflow.
+4. Verify subscription estimates and unchanged billed API totals. Keep quiet when
+   nothing changes; report changed rates/coverage or a failure needing attention.
+
+The verification date shown in the dashboard is the installed catalog's date,
+not a claim that the dashboard itself downloaded prices on its last usage sync.
 
 ## Historical data and backups
 

@@ -345,3 +345,43 @@ localhost while the actual Host/Origin may be 127.0.0.1; the local request guard
 now validates the actual loopback Host before comparing Origin, with allow/deny
 regressions. The reviewer marked implementation d6c46a4 Ready after recheck, with
 no remaining blockers. No CI, secrets or dependencies change; no new cost.
+
+# Refresh subscription API-equivalent pricing
+
+Assignment: Codex · "ai-cost-dashboard" · 01a16549-f1da-7070-8cdc-4c1e96056b2a
+
+Saved Claude Sonnet 5.5, GPT-6.1 Sol and GPT-6 Luna tokens had no matching prices,
+and non-Grok comparisons reused stale index-time estimates. Verify current official
+Anthropic/OpenAI/xAI rates, including cache discounts, and price all retained
+subscription tokens on read. Keep billed API amounts unchanged. Show verification
+date, source links, token coverage, unpriced names and model rate details. A
+read-only aggregate audit supports weekly Codex pricing maintenance; unknown
+internal labels and unavailable Grok Bot tokens remain unpriced. Preserve reviewed
+catalog versions in Git and explain baseline exclusions in README.
+
+Official evidence checked 2026-10-25: Anthropic's pricing page documents Sonnet 5.5
+$2 input / $0.10 cached / $10 output per MTok, $2.50/$4 cache writes; OpenAI's
+Standard pricing documents GPT-6.1 Sol $2/$0.10/$10, $2.50 short cache writes, and
+GPT-6 Luna $0.10/$0.01/$0.50, $0.125 short writes. Older OpenAI model pages verify
+their exact input/cache/output rates. xAI's page verifies Grok 4.7/4.6 $2/$0.50/$6
+and 4.5 $2/$0.30/$6. Sources are linked in README and the UI. Long-context, speed,
+regional, tool and tax costs cannot be reconstructed from these aggregates.
+
+Validation: all 107 tests, TypeScript, lint and production build pass. Lint has
+one pre-existing OpenRouter unused-variable warning; the production build has the
+existing filesystem tracing warning. A production preview using a private SQLite
+copy and disabled background schedulers displays 7-day and 30-day comparisons,
+current model rates, source links and explicit partial coverage. The read-only
+audit confirms older retained rows acquire estimates without rewriting history.
+
+The fresh GPT-6-Astra reviewer caught documented GPT-5.6 Terra/Luna cache-write
+rates and a partial-subtotal label. Both corrections were applied and rechecked;
+the reviewer marked the result Ready, with no remaining actionable findings.
+Their exact model pages document writes at 1.25x input ($2.50/$0.25 per MTok).
+No CI, secrets, dependencies or billed API data changes; no new provider cost.
+
+Created and verified the active Codex heartbeat `refresh-ai-usage-api-pricing`,
+Mondays at 9 AM America/Chicago, attached to the existing dashboard chat. Its
+prompt audits retained model IDs, verifies official sources including promotion
+expiry dates, follows the review/install workflow and stays quiet if nothing
+meaningful changes. It runs through the Codex automation host, not an app timer.

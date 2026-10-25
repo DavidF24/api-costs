@@ -12,12 +12,14 @@ test("Grok uses model-specific cached rates and input rates for cache creation",
   assert.equal(estimateCost("grok-4.7-build", usage), 10.5);
   assert.equal(normalizeModelId("grok-4.7-build"), "grok-4.7");
   assert.equal(estimateCost("grok-4.8-build", usage), null);
-  assert.equal(estimateCost("grok-build-0.1", usage), null);
+  assert.equal(estimateCost("grok-build-0.1", usage), 4.2);
 });
-test("retained Grok history is priced without reindexing, and billing/other estimates stay unchanged", () => {
+test("retained subscription history is repriced without reindexing; actual billing stays unchanged", () => {
   assert.equal(priceRecordedUsage("grok", "grok-4.7-build", usage, null), 10.5);
   assert.equal(priceRecordedUsage("grok", "grok-4.7-build", usage, 999), 10.5);
-  assert.equal(priceRecordedUsage("claude-code", "claude-opus-5-5", usage, 43), 43);
+  assert.equal(priceRecordedUsage("claude-code", "claude-opus-5-5", usage, 43), 29.2);
+  assert.equal(priceRecordedUsage("codex", "gpt-6.1-sol", usage, null), 14.6);
+  assert.equal(priceRecordedUsage("openai", "gpt-6.1-sol", usage, 43), 43);
   assert.equal(priceRecordedUsage("codex", "unknown", usage, null), null);
   assert.equal(priceRecordedUsage("grok-bot", "grok-4.7", usage, 123), null);
 });

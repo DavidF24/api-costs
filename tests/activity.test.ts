@@ -334,7 +334,6 @@ test("pricing: estimateCost with an explicit override (5m and 1h both set) match
 });
 
 test("pricing: an unpriced model returns null", () => {
-  assert.equal(estimateCost("gpt-5.2-codex", { input: 100, output: 100, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 }), null);
   assert.equal(estimateCost("some-made-up-model-id", { input: 1, output: 1, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 }), null);
 });
 
