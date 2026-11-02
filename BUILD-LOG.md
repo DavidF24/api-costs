@@ -385,3 +385,28 @@ Mondays at 9 AM America/Chicago, attached to the existing dashboard chat. Its
 prompt audits retained model IDs, verifies official sources including promotion
 expiry dates, follows the review/install workflow and stays quiet if nothing
 meaningful changes. It runs through the Codex automation host, not an app timer.
+
+# Show recorded tokens beside subscription model rates
+
+Assignment: Grok · "Subscription model token and cost toggle" · 01a19a0e-ea18-7140-a16e-571e17655505
+
+The Model rates and coverage table showed list rates and one API-equivalent total.
+Recorded input, cached input, cache writes and output were already stored, but the
+page received only the older combined token count. Subscription models now keep
+those categories separate. Costs and Tokens switch the same columns without
+changing model order, which stays highest API-equivalent first. Cache writes stay
+short / long. An unpriced model such as codex-auto-review still shows its tokens.
+Claude and Codex combined totals elsewhere still omit cache; Grok's combined total
+still includes it. Grok Bot remains without token data. No prices, stored rows or
+billed amounts change.
+
+Validation: all 109 tests pass, including the new category and order checks.
+TypeScript, eslint on the changed files, and the production build pass. The build
+keeps the existing Turbopack filesystem-tracing warning. A preview on 127.0.0.1:5122,
+using a copy of the local database and with background sync and retention off,
+opened the table, switched Tokens and back to Costs, and kept the same 16 models
+in the same order. gpt-6-astra showed its rate row and then 121.1M / 3.3B / 0 / 0 /
+16.5M / 3.4B. codex-auto-review stayed Unpriced on Costs and showed token counts
+on Tokens. At 320px the page stayed within the viewport and the table scrolled
+inside its card. The Activity tab still rendered. The preview was stopped and its
+temporary port rows removed. The installed service on port 4100 was not restarted.

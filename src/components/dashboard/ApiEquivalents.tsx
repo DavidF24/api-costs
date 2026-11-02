@@ -1,16 +1,21 @@
 "use client";
 
-import type { ActivityResult } from "@/lib/activity/queries";
+import { useState } from "react";
+import type { ActivityModel, ActivityResult } from "@/lib/activity/queries";
 import { subscriptionEstimates } from "@/lib/activity/view";
-import { formatCurrency, getSourceLabel } from "@/lib/format";
+import { formatCompact, formatCurrency, getSourceLabel } from "@/lib/format";
 import { getModelPrice, PRICING_SOURCES, PRICING_VERIFIED_ON } from "@/lib/activity/pricing";
 import { localSource } from "@/lib/activity/view";
 import { DateRangePicker } from "./DateRangePicker";
 import { ProviderIcon } from "./ProviderIcon";
 import { useActivityRange } from "./useActivityRange";
 
+const figures = [{ key: "costs", label: "Costs" }, { key: "tokens", label: "Tokens" }] as const;
+type Figure = (typeof figures)[number]["key"];
+
 export function ApiEquivalents({ initial, year, today, serverNow }: { initial: ActivityResult; year: ActivityResult; today: string; serverNow: number }) {
   const { days, setDays, state, data } = useActivityRange(initial, year, today, serverNow);
+  const [figure, setFigure] = useState<Figure>("costs");
   const estimates = data ? subscriptionEstimates(data.daily) : [];
   return (
     <section aria-labelledby="equivalents-heading" className="space-y-4">
@@ -37,31 +42,57 @@ export function ApiEquivalents({ initial, year, today, serverNow }: { initial: A
       </div>
       {!data && <p role="status" className={`text-sm ${state === "error" ? "text-critical" : "text-muted"}`}>{state === "error" ? "Couldn't load this range. Reload to try again." : "Loading…"}</p>}
       <EstimateNote />
-      {data && <details className="bg-card border border-card-border rounded-xl p-4 sm:p-5">
-        <summary className="text-sm font-medium cursor-pointer">Model rates and coverage</summary>
-        <p className="text-xs text-muted mt-3">USD per million tokens, using standard short-context rates. Cache writes show short / long TTL: Claude 5m / 1h; OpenAI 30m / 12h (only short writes are recorded); Grok uses input rates. — means no verified rate.</p>
-        <div className="overflow-x-auto mt-3">
-          <table className="w-full text-xs text-left whitespace-nowrap">
-            <caption className="sr-only">Current API rates and estimated cost for subscription models in the selected range</caption>
-            <thead><tr className="border-b border-card-border text-muted">
-              {["Model", "Input", "Cached input", "Cache writes", "Output", "API equivalent"].map((label) => <th scope="col" key={label} className="py-2 pr-5 font-medium">{label}</th>)}
-            </tr></thead>
-            <tbody>{data.models.filter((m) => localSource(m.source) && m.source !== "grok-bot").map((m) => {
-              const p = getModelPrice(m.model);
-              const rate = (v: number | null | undefined) => v == null ? "—" : `$${v.toLocaleString("en-US", { maximumFractionDigits: 4 })}`;
-              return <tr key={`${m.source}:${m.model}`} className="border-b border-card-border last:border-0">
-                <th scope="row" className="py-3 pr-5 font-normal"><span className="block font-medium">{m.model}</span><span className="text-muted">{getSourceLabel(m.source)}</span></th>
-                <td className="py-3 pr-5">{rate(p?.input)}</td>
-                <td className="py-3 pr-5">{rate(p?.cacheRead)}</td>
-                <td className="py-3 pr-5">{rate(p?.cacheWrite5m)} / {rate(p?.cacheWrite1h)}</td>
-                <td className="py-3 pr-5">{rate(p?.output)}</td>
-                <td className="py-3 pr-5">{!p || ((m.unpricedTokens ?? 0) > 0 && m.estCost === 0) ? "Unpriced" : `≈ ${formatCurrency(m.estCost)}${(m.unpricedTokens ?? 0) > 0 ? " (partial)" : ""}`}</td>
-              </tr>;
-            })}</tbody>
-          </table>
-        </div>
-      </details>}
+      {data && <ModelCoverage models={data.models.filter((m) => localSource(m.source) && m.source !== "grok-bot")} figure={figure} onFigure={setFigure} />}
     </section>
+  );
+}
+
+function ModelCoverage({ models, figure, onFigure }: { models: ActivityModel[]; figure: Figure; onFigure: (figure: Figure) => void }) {
+  const costs = figure === "costs";
+  const headers = ["Model", "Input", "Cached input", "Cache writes", "Output", costs ? "API equivalent" : "Total"];
+  const rate = (value: number | null | undefined) => value == null ? "—" : `$${value.toLocaleString("en-US", { maximumFractionDigits: 4 })}`;
+  return (
+    <details className="bg-card border border-card-border rounded-xl p-4 sm:p-5">
+      <summary className="text-sm font-medium cursor-pointer">Model rates and coverage</summary>
+      <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+        <p className="text-xs text-muted max-w-3xl">{costs
+          ? "USD per million tokens, using standard short-context rates. Cache writes show short / long TTL: Claude 5m / 1h; OpenAI 30m / 12h (only short writes are recorded); Grok uses input rates. — means no verified rate."
+          : "Recorded tokens for these models, in the same order as Costs. Cache writes show short / long TTL. Fresh input excludes tokens already counted as cache reads or writes."}</p>
+        <div role="group" aria-label="Model figures" className="inline-flex shrink-0 rounded-lg border border-card-border bg-background p-1 gap-1">
+          {figures.map((item) => <button key={item.key} type="button" aria-pressed={figure === item.key} onClick={() => onFigure(item.key)} className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${figure === item.key ? "bg-foreground text-card" : "text-muted hover:text-foreground"}`}>{item.label}</button>)}
+        </div>
+      </div>
+      <div className="overflow-x-auto mt-3">
+        <table className="w-full text-xs text-left whitespace-nowrap">
+          <caption className="sr-only">{costs ? "Current API rates and estimated cost for subscription models in the selected range" : "Recorded tokens for subscription models in the selected range, in API-equivalent order"}</caption>
+          <thead><tr className="border-b border-card-border text-muted">
+            {headers.map((label) => <th scope="col" key={label} className="py-2 pr-5 font-medium">{label}</th>)}
+          </tr></thead>
+          <tbody>{models.map((model) => {
+            const price = getModelPrice(model.model);
+            const usage = model.usage;
+            const total = usage ? usage.input + usage.output + usage.cacheRead + usage.cacheWrite5m + usage.cacheWrite1h : null;
+            const count = (value: number | undefined) => value == null ? "—" : formatCompact(value);
+            return <tr key={`${model.source}:${model.model}`} className="border-b border-card-border last:border-0">
+              <th scope="row" className="py-3 pr-5 font-normal"><span className="block font-medium">{model.model}</span><span className="text-muted">{getSourceLabel(model.source)}</span></th>
+              {costs ? <>
+                <td className="py-3 pr-5 tabular-nums">{rate(price?.input)}</td>
+                <td className="py-3 pr-5 tabular-nums">{rate(price?.cacheRead)}</td>
+                <td className="py-3 pr-5 tabular-nums">{rate(price?.cacheWrite5m)} / {rate(price?.cacheWrite1h)}</td>
+                <td className="py-3 pr-5 tabular-nums">{rate(price?.output)}</td>
+                <td className="py-3 pr-5 tabular-nums">{!price || ((model.unpricedTokens ?? 0) > 0 && model.estCost === 0) ? "Unpriced" : `≈ ${formatCurrency(model.estCost)}${(model.unpricedTokens ?? 0) > 0 ? " (partial)" : ""}`}</td>
+              </> : <>
+                <td className="py-3 pr-5 tabular-nums">{count(usage?.input)}</td>
+                <td className="py-3 pr-5 tabular-nums">{count(usage?.cacheRead)}</td>
+                <td className="py-3 pr-5 tabular-nums">{usage ? `${formatCompact(usage.cacheWrite5m)} / ${formatCompact(usage.cacheWrite1h)}` : "—"}</td>
+                <td className="py-3 pr-5 tabular-nums">{count(usage?.output)}</td>
+                <td className="py-3 pr-5 tabular-nums">{total == null ? "—" : formatCompact(total)}</td>
+              </>}
+            </tr>;
+          })}</tbody>
+        </table>
+      </div>
+    </details>
   );
 }
 
