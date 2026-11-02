@@ -397,8 +397,12 @@ those categories separate. Costs and Tokens switch the same columns without
 changing model order, which stays highest API-equivalent first. Cache writes stay
 short / long. An unpriced model such as codex-auto-review still shows its tokens.
 Claude and Codex combined totals elsewhere still omit cache; Grok's combined total
-still includes it. Grok Bot remains without token data. No prices, stored rows or
-billed amounts change.
+still includes it. Grok Bot remains without token data. Codex cache writes are a
+subset of input_tokens, using Codex's response example (input 100 = 40 cached +
+60 cache-write; total = input + output). The parser now stores that remainder as
+fresh input, so a later index does not add the write again. Rows already stored
+with no cache writes are unchanged. No prices, billed amounts, or database shape
+change.
 
 Validation: all 109 tests pass, including the new category and order checks.
 TypeScript, eslint on the changed files, and the production build pass. The build

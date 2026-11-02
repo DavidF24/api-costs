@@ -37,6 +37,16 @@ test("subscription models keep token categories separate and preserve first-seen
   assert.equal(review.unpricedTokens, 24);
 });
 
+test("folded token categories stay disjoint, including a Codex cache write", () => {
+  const [model] = foldModelUsage([
+    row({ source: "codex", model: "gpt-6-sol", input: 0, output: 10, cacheRead: 40, cacheWrite5m: 60 }),
+  ]);
+  const usage = model.usage;
+  const total = usage.input + usage.output + usage.cacheRead + usage.cacheWrite5m + usage.cacheWrite1h;
+  assert.equal(total, 110);
+  assert.equal(model.tokens, 10);
+});
+
 test("Grok's combined token count includes cache, and a tokenless Grok model stays null", () => {
   const models = foldModelUsage([
     row({ source: "grok", model: "grok-4.7-build", input: 10, output: 4, cacheRead: 30, cacheWrite5m: 2 }),
