@@ -1,6 +1,7 @@
 import { sql, eq, and, gte, lte } from "drizzle-orm";
 import { db } from "../db";
 import { activityUsage, activityTools, activitySessions, costEntries } from "../db/schema";
+import { foldModelUsage, type ModelUsage } from "./model-usage";
 import { priceRecordedUsage } from "./pricing";
 import { toEasternDate } from "../timezone";
 
@@ -24,6 +25,8 @@ export type ActivityModel = {
   tokens: number | null; // null when the source doesn't carry token counts (some cost_entries rows)
   estCost: number;
   unpricedTokens?: number;
+  // Subscription models only. Absent for billed API rows, which do not record this split.
+  usage?: ModelUsage;
 };
 
 export type ApiActivityDaily = { date: string; source: string; input: number; output: number; cost: number };
@@ -90,7 +93,6 @@ function getLocalUsage(start: string, end: string) {
 
 function rollupLocal(rows: ReturnType<typeof getLocalUsage>) {
   const daily = new Map<string, ActivityDaily>();
-  const models = new Map<string, ActivityModel & { dates: Set<string> }>();
   for (const r of rows) {
     const key = `${r.date}|${r.source}`;
     const d = daily.get(key) ?? { date: r.date, source: r.source, messages: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, estCost: 0, unpricedTokens: 0 };
@@ -102,21 +104,10 @@ function rollupLocal(rows: ReturnType<typeof getLocalUsage>) {
     d.estCost += r.estCost;
     d.unpricedTokens += r.unpricedTokens;
     daily.set(key, d);
-    if (r.model === "unknown") continue;
-    const modelKey = `${r.source}|${r.model}`;
-    const m = models.get(modelKey) ?? { source: r.source, model: r.model, days: 0, dates: new Set<string>(), lastUsed: r.date, tokens: 0, estCost: 0, unpricedTokens: 0 };
-    m.dates.add(r.date);
-    m.lastUsed = r.date > m.lastUsed ? r.date : m.lastUsed;
-    // Preserve the existing Claude/Codex model-token convention; Grok input
-    // excludes cached tokens, so include its cache columns explicitly.
-    m.tokens = (m.tokens ?? 0) + r.input + r.output + (r.source === "grok" ? r.cacheRead + r.cacheWrite5m + r.cacheWrite1h : 0);
-    m.estCost += r.estCost;
-    m.unpricedTokens = (m.unpricedTokens ?? 0) + r.unpricedTokens;
-    models.set(modelKey, m);
   }
   return {
     daily: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)),
-    models: [...models.values()].map(({ dates, ...m }) => ({ ...m, days: dates.size, tokens: m.source === "grok" && m.tokens === 0 ? null : m.tokens })),
+    models: foldModelUsage(rows),
   };
 }
 

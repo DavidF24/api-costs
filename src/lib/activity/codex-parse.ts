@@ -129,14 +129,17 @@ export function createCodexAccumulator() {
         const u = usage as Record<string, unknown>;
         const input = numOr0(u.input_tokens);
         const cached = numOr0(u.cached_input_tokens);
+        const cacheWrite = numOr0(u.cache_write_input_tokens);
         pendingUsage.push({
           timestamp: ts,
           turnId,
-          // input_tokens INCLUDES cached_input_tokens; uncached = input - cached.
-          input: Math.max(0, input - cached),
+          // input_tokens includes cached reads and cache writes. Codex's own
+          // example is input 100 = 40 cached + 60 cache-write, and total_tokens
+          // is input + output. Store the remainder so the categories do not overlap.
+          input: Math.max(0, input - cached - cacheWrite),
           output: numOr0(u.output_tokens),
           cacheRead: cached,
-          cacheWrite5m: numOr0(u.cache_write_input_tokens),
+          cacheWrite5m: cacheWrite,
         });
       }
       return;

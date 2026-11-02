@@ -274,6 +274,20 @@ test("codex: uncached input = input_tokens - cached_input_tokens", () => {
   assert.equal(result.usage[0].cacheRead, 400);
 });
 
+test("codex: cache writes are already inside input_tokens and are not counted again", () => {
+  // Codex response usage example: input 100 = 40 cached + 60 cache-write, total = input + output.
+  const acc = createCodexAccumulator();
+  acc.line(sessionMeta("sess-1", "/x/proj", "2026-09-01T10:00:00.000Z"));
+  acc.line(turnContext("turn-1", "gpt-6-sol", "/x/proj", "2026-09-01T10:00:01.000Z"));
+  acc.line(tokenUsage("turn-1", { input_tokens: 100, cached_input_tokens: 40, cache_write_input_tokens: 60, output_tokens: 10 }, "2026-09-01T10:00:02.000Z"));
+  const usage = acc.finish(toDate).usage[0];
+  assert.equal(usage.input, 0);
+  assert.equal(usage.cacheRead, 40);
+  assert.equal(usage.cacheWrite5m, 60);
+  assert.equal(usage.output, 10);
+  assert.equal(usage.input + usage.output + usage.cacheRead + usage.cacheWrite5m + usage.cacheWrite1h, 110);
+});
+
 test("codex: token_usage_record with no matching turn_context is dropped", () => {
   const acc = createCodexAccumulator();
   acc.line(sessionMeta("sess-1", "/x/proj", "2026-09-01T10:00:00.000Z"));
