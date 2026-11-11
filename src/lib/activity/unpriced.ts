@@ -3,13 +3,15 @@
 // list to decide whether there is anything to look up. Takes a plain better-sqlite3
 // handle (no path aliases) so tests use an in-memory database.
 import type Database from "better-sqlite3";
-import { estimateCost, INTERNAL_MODELS, normalizeModelId, type UsageForCost } from "./pricing.ts";
+import { estimateCost, getModelPrice, INTERNAL_MODELS, normalizeModelId, type UsageForCost } from "./pricing.ts";
 
 // awaiting: a public model with no verified price in the catalog yet.
 // internal: a tool's own label (no public API price will ever exist).
 // other-provider: routed through another provider (e.g. "deepseek/..." via OpenRouter),
 // billed on that provider's own account rather than covered by the subscription.
-export type UnpricedKind = "awaiting" | "internal" | "other-provider";
+// missing-rate: a priced model that used a token category with no published rate; not
+// new, so it does not trigger the daily lookup (`--new` reports only "awaiting").
+export type UnpricedKind = "awaiting" | "internal" | "other-provider" | "missing-rate";
 export type UnpricedModel = {
   source: string;
   model: string;
@@ -25,7 +27,7 @@ export function classifyUnpriced(model: string): UnpricedKind {
   const id = normalizeModelId(model);
   if (INTERNAL_MODELS.has(id)) return "internal";
   if (id.includes("/")) return "other-provider";
-  return "awaiting";
+  return getModelPrice(id) ? "missing-rate" : "awaiting";
 }
 
 // A model counts as unpriced when the catalog has no entry for it, or has one but no

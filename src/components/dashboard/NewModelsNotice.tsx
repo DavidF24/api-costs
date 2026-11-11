@@ -31,7 +31,7 @@ export function NewModelsNotice() {
         <p className="text-muted">Their tokens are left out of the API-price estimates and subscription splits until the price check adds an official rate.</p>
       </>}
       {others.length > 0 && <p className="text-muted break-words">
-        Not priced by design: {others.map((m) => `${m.model} (${m.kind === "internal" ? "internal label" : "billed by another provider"})`).join(", ")}.
+        Not priced: {others.map((m) => `${m.model} (${m.kind === "internal" ? "internal label" : m.kind === "missing-rate" ? "no published rate for some token types" : "billed by another provider"})`).join(", ")}.
       </p>}
     </div>
   );

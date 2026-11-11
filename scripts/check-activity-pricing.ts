@@ -39,7 +39,7 @@ try {
       apiEquivalentUSD: estimateCost(r.model, r)?.toFixed(2) ?? "UNPRICED",
     })));
     const unpriced = readUnpricedModels(sqlite);
-    for (const m of unpriced) console.log(`${m.model}: ${m.kind === "awaiting" ? "awaiting a verified price" : m.kind === "internal" ? "internal label, no public price" : "billed by another provider, not the subscription"}`);
+    for (const m of unpriced) console.log(`${m.model}: ${m.kind === "awaiting" ? "awaiting a verified price" : m.kind === "internal" ? "internal label, no public price" : m.kind === "missing-rate" ? "priced, but no published rate for a token type it used" : "billed by another provider, not the subscription"}`);
     console.log("Grok Bot has no token data.");
   }
 } finally { sqlite.close(); }
