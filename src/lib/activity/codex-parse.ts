@@ -5,6 +5,7 @@
 export type CodexUsageRow = {
   date: string;
   project: string;
+  cwd: string; // full working folder; see ClaudeUsageRow.cwd
   model: string;
   messages: number;
   input: number;
@@ -160,13 +161,15 @@ export function createCodexAccumulator() {
       const ctx = turnContexts.get(v.turnId);
       if (!ctx) continue; // no model to attribute this usage to: drop it
       const date = toDate(v.timestamp);
-      const project = basename(ctx.cwd ?? sessionCwd ?? "");
-      const key = `${date}|${project}|${ctx.model}`;
+      const cwd = ctx.cwd ?? sessionCwd ?? "";
+      const project = basename(cwd);
+      const key = `${date}|${cwd}|${ctx.model}`;
       let g = usageGroups.get(key);
       if (!g) {
         g = {
           date,
           project,
+          cwd,
           model: ctx.model,
           messages: 0,
           input: 0,

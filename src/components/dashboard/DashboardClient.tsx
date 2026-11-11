@@ -26,6 +26,7 @@ import { ProviderFilter } from "./ProviderFilter";
 import { SyncBar } from "./SyncBar";
 import { SyncHistory } from "./SyncHistory";
 import { ApiKeys } from "./ApiKeys";
+import { DevCosts } from "./DevCosts";
 
 type DashboardData = {
   summary: PeriodSummaryType;
@@ -49,7 +50,7 @@ const SYNC_BEHIND_MS = 26 * 60 * 60 * 1000;
 // Re-render from the server (router.refresh keeps client state such as the range and filter).
 const PAGE_REFRESH_MS = 2 * 60 * 1000;
 
-const TABS = [{ id: "subscriptions", label: "Subscriptions" }, { id: "api", label: "API spend" }, { id: "activity", label: "Activity" }] as const;
+const TABS = [{ id: "subscriptions", label: "Subscriptions" }, { id: "api", label: "API spend" }, { id: "activity", label: "Activity" }, { id: "dev-costs", label: "Development costs" }] as const;
 type Tab = typeof TABS[number]["id"];
 
 export function DashboardClient({ data }: { data: DashboardData }) {
@@ -222,6 +223,10 @@ export function DashboardClient({ data }: { data: DashboardData }) {
 
       <div id="panel-activity" role="tabpanel" aria-labelledby="tab-activity" hidden={tab !== "activity"}>
         <ActivitySection year={data.activityYear} initial={data.activity} today={data.today} serverNow={data.serverNow} active={tab === "activity"} />
+      </div>
+
+      <div id="panel-dev-costs" role="tabpanel" aria-labelledby="tab-dev-costs" hidden={tab !== "dev-costs"}>
+        <DevCosts active={tab === "dev-costs"} serverNow={data.serverNow} />
       </div>
     </main>
   );

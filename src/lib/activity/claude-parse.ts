@@ -6,6 +6,9 @@
 export type ClaudeUsageRow = {
   date: string;
   project: string;
+  // Full working folder, so a worktree can be traced back to its repository. Optional
+  // because Grok Bot transcripts have no folder.
+  cwd?: string;
   model: string;
   messages: number;
   input: number;
@@ -229,12 +232,13 @@ export function createClaudeAccumulator(opts: ClaudeAccumulatorOpts) {
     for (const v of usageByKey.values()) {
       const date = toDate(v.timestamp);
       const project = basename(v.cwd);
-      const key = `${date}|${project}|${v.model}`;
+      const key = `${date}|${v.cwd}|${v.model}`;
       let g = usageGroups.get(key);
       if (!g) {
         g = {
           date,
           project,
+          cwd: v.cwd,
           model: v.model,
           messages: 0,
           input: 0,

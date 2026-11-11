@@ -6,7 +6,7 @@ API spend uses actual billed amounts from each provider's billing API. Subscript
 
 ## What it does
 
-- **Three tabs** -- Subscriptions keeps quotas, This week and API-equivalent estimates together; API spend contains actual billing and sync history; Activity has a Subscriptions / API / Combined source toggle. Each view keeps its own date range while switching tabs. Tab links can be bookmarked using `#subscriptions`, `#api` and `#activity`.
+- **Four tabs** -- Subscriptions keeps quotas, This week and API-equivalent estimates together; API spend contains actual billing and sync history; Activity has a Subscriptions / API / Combined source toggle; Development costs splits subscription fees by repository, project and client. Each view keeps its own date range while switching tabs. Tab links can be bookmarked using `#subscriptions`, `#api`, `#activity` and `#dev-costs`.
 - **At API prices** -- recorded Claude Code, Codex and Grok tokens are valued at current verified standard API rates, including cache discounts and known cache-write rates. All retained tokens are repriced on read, including history first indexed without a price. Cards show pricing coverage and unpriced model names; expand **Model rates and coverage** and switch **Costs** or **Tokens** to inspect the rates or the recorded token counts for the same models, in the same order. Grok Bot has message history only, so its equivalent is unavailable.
 - **Activity scope** -- the toggle filters models and summary totals. Combined output tokens include recorded local and API output; sessions and messages cover local history only. API activity charts only token counts actually reported by providers. Dollar estimates and billed charges are never added together. The message calendars always cover the last year; the range picker controls summaries, tools, API tokens and model details.
 
@@ -185,6 +185,33 @@ in the dashboard; the local host must be available. Its procedure is:
 
 The verification date shown in the dashboard is the installed catalog's date,
 not a claim that the dashboard itself downloaded prices on its last usage sync.
+
+## Development costs
+
+The **Development costs** tab answers "what did each repository, project and client cost?"
+so costs can be passed through on monthly statements and invoices.
+
+- **Subscription split.** Record each subscription's monthly fee, its renewal day and the
+  date it starts under **Subscription fees**. Each billing period's whole fee is split by
+  each repository's share of that tool's API-equivalent usage in the period: Claude by
+  Claude Code, ChatGPT by Codex, Grok by Grok. Using half a plan does not halve its
+  cost. Charges are in cents that add up exactly to the fee. The current period is a
+  running estimate; earlier periods are closed. A new fee applies from its own start
+  date, and a period cut short by a plan change charges the old fee for its days only.
+  Models without a verified API price are listed and left out of the shares.
+- **Repositories.** Repositories are found in `CODE_ROOT` (default `~/code`). Usage in a
+  worktree (`<repo>/.claude/worktrees/…`, `<repo>/.worktrees/…`, `<repo>.worktrees.…`,
+  `~/.codex/worktrees/<id>/<repo>`) or a subfolder counts toward its repository. A project
+  folder in the code folder without git also counts as one unit; inside a folder that
+  groups repositories (such as `ms-pro`), the next level down is the unit. Older Claude
+  history without a recorded folder is traced through Claude's encoded project folder.
+  The first start after upgrading re-reads all local history once to record the folders.
+- **Clients and projects.** Each client has billing contact details, payment terms, an
+  internal flag and a **Send invoices** setting. Each project follows its client's
+  setting unless it is set to **Send invoices** or **Track only**. Link each repository
+  to a project; unlinked usage shows as Unassigned. Costs are passed through at cost.
+
+Client details are stored only in the local database in `data/`, which Git ignores.
 
 ## Historical data and backups
 

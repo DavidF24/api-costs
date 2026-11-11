@@ -43,7 +43,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# sqlite
+# local database, backups and logs (holds client billing details)
+/data/
 data/*.sqlite
 data/*.sqlite-wal
 data/*.sqlite-shm

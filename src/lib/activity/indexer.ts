@@ -35,7 +35,7 @@ type Source = "claude-code" | "codex" | "grok" | "grok-bot";
 // `path` is where the file is read from. `key` identifies it in the activity tables: the path
 // relative to its log root, so the same transcript found under another configured root (or
 // after a move) replaces its rows instead of being counted twice.
-type FileEntry = { path: string; key: string; source: Source; isSubagent: boolean; sessionId?: string; project?: string };
+type FileEntry = { path: string; key: string; source: Source; isSubagent: boolean; sessionId?: string; project?: string; cwd?: string };
 
 const toDate = (iso: string): string => toEasternDate(new Date(iso));
 
@@ -142,7 +142,7 @@ async function parseFile(entry: FileEntry): Promise<ClaudeFinishResult | CodexFi
     return acc.finish(toDate);
   }
   if (entry.source === "grok") {
-    const acc = createGrokAccumulator(entry.sessionId!, entry.project!, toDate);
+    const acc = createGrokAccumulator(entry.sessionId!, entry.project!, toDate, entry.cwd);
     await streamGrokLines(entry.path, acc.line);
     return acc.finish();
   }
@@ -180,6 +180,7 @@ function writeFileRows(
           date: u.date,
           source: entry.source,
           project: u.project,
+          cwd: u.cwd || null,
           model: u.model,
           messages: u.messages,
           input: u.input,
