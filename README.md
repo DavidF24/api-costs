@@ -147,7 +147,7 @@ to all retained token aggregates immediately after installing the new build, eve
 if the original transcript was pruned. Index-time `est_cost_usd` values are kept in
 SQLite but are no longer the source of displayed subscription comparisons.
 
-Official sources, last checked October 25, 2026:
+Official sources, last checked November 11, 2026:
 
 - Anthropic: https://platform.claude.com/docs/en/about-claude/pricing
 - OpenAI: https://developers.openai.com/api/docs/pricing and the model-specific
@@ -162,6 +162,10 @@ split, while Codex records only short cache writes. An undocumented rate with
 positive usage makes that model bucket unpriced, rather than assuming it is free.
 Known Grok 4.5/4.6/4.7 `-build` labels use their public model's baseline. Internal
 labels such as `codex-auto-review` have no verified public price and stay unpriced.
+Provider-prefixed IDs such as `deepseek/...` are runs routed through another provider
+(for example OpenRouter), billed on that provider's account rather than the
+subscription. Like internal labels, they get no share of a subscription fee, but
+their tokens still count as unpriced usage in coverage and period notes.
 Coverage is the share of recorded tokens priced; it cannot measure missing logs or
 Grok Bot tokens that were never provided by the source.
 
@@ -174,7 +178,7 @@ in the dashboard; the local host must be available. Its procedure is:
    lists unknown models without opening credentials or transcripts.
 2. Fetch the official pages above and verify exact model IDs, Standard input,
    cached input, output and cache-write rates. Recheck promotions, especially
-   GPT-5.6 Sol's price guaranteed at least through November 21, 2026. Do not guess
+   GPT-5.6 Sol's promotional price, available until November 30, 2026. Do not guess
    a rate for internal labels or substitute another model.
 3. Follow AGENTS/Keel coordination in an isolated worktree. Update the reviewed
    price snapshot and verification date only for verified data, preserve evidence
@@ -182,6 +186,14 @@ in the dashboard; the local host must be available. Its procedure is:
    independent review, merge and install through the normal repository workflow.
 4. Verify subscription estimates and unchanged billed API totals. Keep quiet when
    nothing changes; report changed rates/coverage or a failure needing attention.
+
+**New models.** The Activity tab lists any model in the saved history that the
+catalog does not price yet (or that used a token category with no verified rate), with the day it first appeared, as soon as the next sync
+indexes it; internal labels, other-provider runs and priced models missing one token type's
+rate are listed separately and never trigger the lookup. `node scripts/check-activity-pricing.ts --new` prints those
+models and exits 2 when one is waiting, or prints nothing and exits 0, so a daily
+job can start the price lookup only when something new has appeared. Prices are
+still added only from the official pages above, never estimated.
 
 The verification date shown in the dashboard is the installed catalog's date,
 not a claim that the dashboard itself downloaded prices on its last usage sync.

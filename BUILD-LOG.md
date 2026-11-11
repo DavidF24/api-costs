@@ -444,3 +444,43 @@ Independent review: a fresh Opus 5.5 reviewer found Not ready on 4124a34 (whole 
 a partial first period; re-read skippable by drizzle-kit; name fallback for recorded
 folders; and four minor items). All were fixed in acfad63, and a fresh recheck marked
 it Ready. That recheck flagged the drizzle-kit drop risk, fixed in this commit.
+
+# Verified prices for new models and new-model notice
+
+Assignment: Claude Code · "Development costs and billing dashboard" · d66b7d84-ab90-4f66-918b-4c5a6ad48753 · desktop local_158a89cf-b7ee-4ece-88c3-813c52a5cf34
+
+Work item W-17 (narrowed from W-14, whose paths overlap W-15).
+
+Prices verified 2026-11-11 from the official pages, Standard short-context rates:
+
+- Anthropic pricing table: "Claude Fable 5.2 | $8 / MTok | $10 / MTok | $16 / MTok |
+  $0.20 / MTok | $40 / MTok" (input, 5m write, 1h write, cache hit, output). No
+  promotion or long-context premium.
+- OpenAI pricing table: "gpt-6.1-terra | $1.00 | $5.00 | $0.05 | $1.25 | $2.50 | ..."
+  (short-context input, output, cached input, 30m write, 12h write). The model page
+  confirms these figures. Only the 30-minute write is used, matching the other OpenAI models.
+- The GPT-5.6 Sol promotion now runs "until November 30, 2026" (it was "at least
+  through November 21"). The rate is unchanged.
+- `codex-auto-review` is not on OpenAI's pages and stays unpriced as an internal label.
+  `deepseek/deepseek-v4.1-flash-1017` is a run routed through OpenRouter and billed
+  there, so it is listed as another provider's model, not a subscription model.
+
+The Activity tab now lists models in saved history that the catalog does not price,
+with the date each was first seen. `scripts/check-activity-pricing.ts --new` exits 2
+only when one is waiting, so a daily job can trigger the lookup. No guessed or
+provisional prices are added.
+
+Validation: 127 tests pass, including a new unpriced-pricing test. `tsc` is clean.
+ESLint reports one existing warning in openrouter.ts. The price check was run
+read-only on the live database and lists none awaiting. On a copy of the database
+with a test model added, the notice appeared on the Activity tab and the API listed
+all three kinds. `npm run build` passes with DATABASE_PATH set to the copy (a fresh worktree has no data directory, as before).
+
+Independent review (fresh Opus 5.5, full tier): Ready, with low-severity findings,
+all fixed. Models that have a price entry but used a category with no rate are now
+listed too. Suffix variants merge under the base ID. The route is local-only. The
+script rejects unknown options (exit 1). The README now says other-provider and
+internal models still count as unpriced usage. The notice is no longer a late
+live region. The reviewer confirmed that, on the live database, only the
+claude-fable-5-2 ($94.06) and gpt-6.1-terra ($0.27) estimates change. Subscription
+shares for periods since Nov 3 shift accordingly. Nothing has been invoiced yet.
