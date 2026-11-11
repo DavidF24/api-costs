@@ -189,8 +189,8 @@ in the dashboard; the local host must be available. Its procedure is:
 
 **New models.** The Activity tab lists any model in the saved history that the
 catalog does not price yet (or that used a token category with no verified rate), with the day it first appeared, as soon as the next sync
-indexes it; internal labels and other-provider runs are listed separately as not
-priced by design. `node scripts/check-activity-pricing.ts --new` prints those
+indexes it; internal labels, other-provider runs and priced models missing one token type's
+rate are listed separately and never trigger the lookup. `node scripts/check-activity-pricing.ts --new` prints those
 models and exits 2 when one is waiting, or prints nothing and exits 0, so a daily
 job can start the price lookup only when something new has appeared. Prices are
 still added only from the official pages above, never estimated.
