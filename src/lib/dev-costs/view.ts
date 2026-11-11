@@ -34,7 +34,9 @@ type Deps = {
 };
 
 function resolve(row: UsageRow, resolver: RepoResolver): { key: string; label: string; repo: Repo | null } {
-  const repo = resolver.fromCwd(row.cwd) ?? (row.cwd ? null : resolver.fromClaudeKey(row.path)) ?? resolver.fromName(row.project);
+  // Folder-name matching is only for old rows with no recorded folder: a recorded folder
+  // that is not in a known repository (say ~/Downloads/keel) must not be billed to one.
+  const repo = row.cwd ? resolver.fromCwd(row.cwd) : resolver.fromClaudeKey(row.path) ?? resolver.fromName(row.project);
   if (repo) return { key: `repo:${repo.id}`, label: repo.id, repo };
   const name = row.project || "No folder";
   return { key: `folder:${name}`, label: name, repo: null };
@@ -76,11 +78,13 @@ export function buildDevCostsView(d: Deps): DevCostsView {
     tool: s.tool,
     periods: periods.filter((p) => p.subscription === s.id).map((p) => {
       const { byKey, unpricedTokens, unpricedModels } = priced(d.usage(p.start, p.end, s.sources), d.resolver);
-      const lines = splitFee(p.feeUsd, [...byKey].map(([key, g]) => ({ key, apiEquivalentUsd: g.value })), "folder:No recorded usage");
+      // With usage but none of it priced, say so rather than "no usage".
+      const empty = unpricedTokens > 0 ? "Usage not priced" : "No recorded usage";
+      const lines = splitFee(p.feeUsd, [...byKey].map(([key, g]) => ({ key, apiEquivalentUsd: g.value })), `folder:${empty}`);
       const rows = lines.map((l) => {
         const g = byKey.get(l.key);
         const repoId = g?.repo?.id ?? null;
-        return { ...l, label: g?.label ?? "No recorded usage", repoId, ...owner(repoId) };
+        return { ...l, label: g?.label ?? empty, repoId, ...owner(repoId) };
       });
       return { ...p, rows, apiEquivalentUsd: rows.reduce((t, r) => t + r.apiEquivalentUsd, 0), unpricedTokens, unpricedModels };
     }),

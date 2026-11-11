@@ -47,16 +47,22 @@ export function ensureDevCosts(db: Database.Database) {
   ) STRICT;`);
 }
 
-// Activity rows now keep the full working folder. Adding the column clears the file
-// change cache once, so the next index re-reads every transcript still on disk and fills it.
+// Activity rows now keep the full working folder. The file change cache is cleared once,
+// so the next index re-reads every transcript still on disk and records it. A marker row,
+// not the column, records that this happened: `drizzle-kit push` may add the column first.
 // Rows for transcripts that are gone keep NULL; repos.ts resolves those another way.
+// IMMEDIATE takes the write lock before checking, so two processes opening the database at
+// once cannot both try to add the column.
 export function ensureActivityCwd(db: Database.Database) {
-  const cols = db.prepare(`SELECT name FROM pragma_table_info('activity_usage')`).all() as { name: string }[];
-  if (cols.length === 0 || cols.some((c) => c.name === "cwd")) return;
   db.transaction(() => {
-    db.exec(`ALTER TABLE activity_usage ADD COLUMN cwd TEXT`);
+    db.exec(`CREATE TABLE IF NOT EXISTS dc_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT`);
+    const cols = db.prepare(`SELECT name FROM pragma_table_info('activity_usage')`).all() as { name: string }[];
+    if (cols.length === 0) return; // a new database; drizzle-kit creates the table with the column
+    if (!cols.some((c) => c.name === "cwd")) db.exec(`ALTER TABLE activity_usage ADD COLUMN cwd TEXT`);
+    if (db.prepare(`SELECT 1 FROM dc_meta WHERE key='activity_cwd_reindex'`).get()) return;
     db.exec(`DELETE FROM activity_files`);
-  })();
+    db.prepare(`INSERT INTO dc_meta (key, value) VALUES ('activity_cwd_reindex', ?)`).run(new Date().toISOString());
+  }).immediate();
 }
 
 type ClientRow = { id: number; name: string; contact: string; email: string; address: string; payment_terms: string; internal: number; send_invoices: number; notes: string };

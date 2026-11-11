@@ -113,7 +113,7 @@ function SubscriptionCard({ sub, group }: { sub: SubscriptionView; group: Group 
         </td></tr>}<tr className="border-t border-card-border font-medium"><td className="py-1.5">Total</td><td /><td className="text-right tabular-nums">{formatCurrency(period.feeUsd)}</td></tr></tfoot>
       </table>
       <p className="text-xs text-muted">{formatCurrency(period.apiEquivalentUsd)} of usage at API prices in this period.</p>
-      {period.prorated && <p className="text-xs text-muted">Shortened by a plan change: the fee covers only these days.</p>}
+      {period.prorated && <p className="text-xs text-muted">Part of a billing cycle (a plan started or changed mid-cycle): the fee covers only these days.</p>}
       {period.unpricedTokens > 0 && <p className="text-xs text-warning">Not counted, no verified API price yet: {period.unpricedModels.join(", ")}.</p>}
     </>}
   </div>;

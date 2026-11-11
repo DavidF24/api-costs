@@ -1,7 +1,7 @@
 // Finds the git repositories under the code folder and traces a recorded working folder
 // (including worktrees, subfolders and Claude's encoded project folder names) back to one
 // of them. Plain node: imports only, so tests load it directly with `node --test`.
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
 export type Repo = {
@@ -64,6 +64,7 @@ export type RepoResolver = {
 export function createRepoResolver(repos: Repo[], home: string, codeRoot?: string): RepoResolver {
   const byLength = [...repos].sort((a, b) => b.path.length - a.path.length);
   const encoded = byLength.map((r) => ({ repo: r, enc: encodeClaudeDir(r.path) }));
+  const byPath = new Map(repos.map((r) => [r.path, r]));
   const names = new Map<string, Repo | null>();
   for (const r of repos) names.set(r.name, names.has(r.name) ? null : r); // null = ambiguous
 
@@ -85,7 +86,20 @@ export function createRepoResolver(repos: Repo[], home: string, codeRoot?: strin
     const wt = parts.findIndex((p) => /^.+?\.worktrees(\.|$)/.test(p));
     if (wt >= 0) cwd = [...parts.slice(0, wt), parts[wt].replace(/\.worktrees.*$/, "")].join("/");
     // The deepest repository containing the folder (subfolders and in-repo worktrees).
-    return byLength.find((r) => cwd === r.path || cwd.startsWith(r.path + "/")) ?? plainFolder(cwd);
+    return byLength.find((r) => cwd === r.path || cwd.startsWith(r.path + "/")) ?? worktreeOwner(cwd) ?? plainFolder(cwd);
+  }
+
+  // Any other worktree still on disk: its `.git` file names the main repository's
+  // `.git/worktrees/<name>` folder.
+  function worktreeOwner(cwd: string): Repo | null {
+    if (!codeRoot || !cwd.startsWith(codeRoot + "/")) return null;
+    for (let dir = cwd; dir.length > codeRoot.length; dir = dir.slice(0, dir.lastIndexOf("/"))) {
+      let text: string;
+      try { text = readFileSync(join(dir, ".git"), "utf8"); } catch { continue; }
+      const m = /^gitdir:\s*(.+?)\/\.git\/worktrees\/[^/]+\s*$/m.exec(text);
+      return m ? byPath.get(m[1].startsWith("/") ? m[1] : join(dir, m[1])) ?? null : null;
+    }
+    return null;
   }
 
   // Work in a code-folder project that has no git repository (e.g. code/legal or
@@ -106,7 +120,10 @@ export function createRepoResolver(repos: Repo[], home: string, codeRoot?: strin
     const m = /^claude-code:([^/]+)\//.exec(key);
     if (!m) return null;
     const dir = m[1];
-    return encoded.find(({ enc }) => dir === enc || dir.startsWith(enc + "-"))?.repo ?? null;
+    // The encoding turns every symbol into "-", so only the repository itself or one of its
+    // worktree layouts counts; "code/keel-old" must not be billed to "keel".
+    const tails = ["--claude-worktrees-", "--worktrees-", "-worktrees-"];
+    return encoded.find(({ enc }) => dir === enc || tails.some((t) => dir.startsWith(enc + t)))?.repo ?? null;
   }
 
   return { fromCwd, fromClaudeKey, fromName };

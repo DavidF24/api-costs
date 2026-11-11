@@ -22,8 +22,9 @@ test("renewal dates fall on the last day of shorter months", () => {
 test("billing periods follow the renewal day, run newest first and mark the open period", () => {
   const periods = billingPeriods([term({ id: 3, subscription: "grok", feeUsd: 100, renewalDay: 20, startsOn: "2026-10-20" })], "2026-11-25");
   assert.deepEqual(periods.map((p) => [p.start, p.end, p.open]), [["2026-11-20", "2026-12-20", true], ["2026-10-20", "2026-11-20", false]]);
-  // A first date before the renewal day ends at that month's renewal, not a month later.
-  assert.deepEqual(billingPeriods([term({ renewalDay: 20, startsOn: "2026-11-01" })], "2026-11-05").map((p) => [p.start, p.end]), [["2026-11-01", "2026-11-20"]]);
+  // A first date between renewal days ends at the next renewal and pays only for its days
+  // (19 of the 31 days from Oct 20 to Nov 20).
+  assert.deepEqual(billingPeriods([term({ renewalDay: 20, startsOn: "2026-11-01" })], "2026-11-05").map((p) => [p.start, p.end, p.feeUsd, p.prorated]), [["2026-11-01", "2026-11-20", 122.58, true]]);
   assert.deepEqual(billingPeriods([term({ startsOn: "2026-12-04" })], "2026-11-11"), []);
 });
 
@@ -37,6 +38,16 @@ test("a fee change starts on its own date and earlier periods keep the old fee",
     ["2026-11-03", "2026-12-03", 500], ["2026-11-02", "2026-11-03", 6.67], ["2026-10-02", "2026-11-02", 200], ["2026-09-02", "2026-10-02", 200],
   ]);
   assert.deepEqual(periods.map((p) => p.prorated), [false, true, false, false]);
+});
+
+test("an upgrade between renewal days prorates both the old and the new fee", () => {
+  const periods = billingPeriods([
+    term({ id: 1, feeUsd: 200, renewalDay: 4, startsOn: "2026-11-04" }),
+    term({ id: 2, feeUsd: 500, renewalDay: 4, startsOn: "2026-11-20" }),
+  ], "2026-12-10");
+  assert.deepEqual(periods.map((p) => [p.start, p.end, p.feeUsd]), [
+    ["2026-12-04", "2027-01-04", 500], ["2026-11-20", "2026-12-04", 233.33], ["2026-11-04", "2026-11-20", 106.67],
+  ]);
 });
 
 test("the whole fee is split by API-equivalent share in cents that add up exactly", () => {
@@ -74,11 +85,23 @@ test("worktrees, subfolders and file URLs resolve to their repository", () => {
   for (const [cwd, id] of cases) assert.equal(resolver.fromCwd(cwd)?.id ?? null, id, cwd);
 });
 
+test("a worktree with any folder name resolves through its .git file", () => {
+  const dir = mkdtempSync(join(tmpdir(), "dev-costs-wt-"));
+  mkdirSync(join(dir, "main/.git/worktrees/side"), { recursive: true });
+  mkdirSync(join(dir, "side-checkout/web"), { recursive: true });
+  writeFileSync(join(dir, "side-checkout/.git"), `gitdir: ${dir}/main/.git/worktrees/side\n`);
+  const r = createRepoResolver(listRepos(dir), "/Users/me", dir);
+  assert.equal(r.fromCwd(join(dir, "side-checkout/web"))?.id, "main");
+  assert.equal(r.fromCwd(join(dir, "other"))?.git, false);
+});
+
 test("old Claude rows resolve from the encoded transcript folder, never a partial name", () => {
   const key = (p: string) => `claude-code:${encodeClaudeDir(p)}/abc.jsonl`;
   assert.equal(resolver.fromClaudeKey(key(`${root}/hazel-care-kids/.claude/worktrees/x`))?.id, "hazel-care-kids");
   assert.equal(resolver.fromClaudeKey(key(`${root}/renovo-lending.worktrees.renovo-ci`))?.id, "renovo-lending");
   assert.equal(resolver.fromClaudeKey(key(`${root}/keelson`)), null);
+  assert.equal(resolver.fromClaudeKey(key(`${root}/keel-old`)), null);
+  assert.equal(resolver.fromClaudeKey(key(`${root}/keel/.worktrees/a`))?.id, "keel");
   assert.equal(resolver.fromClaudeKey("codex:2026/11/01/rollout.jsonl"), null);
   assert.equal(resolver.fromName("keel")?.id, "keel");
   assert.equal(resolver.fromName("mspro-rc"), null);
@@ -134,6 +157,14 @@ test("adding the folder column clears the change cache once so transcripts are r
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM activity_files").get() as { n: number }).n, 1, "runs only once");
 });
 
+test("the one-time re-read still happens when drizzle-kit already added the column", () => {
+  const db = new Database(":memory:");
+  db.exec(`CREATE TABLE activity_usage (id INTEGER PRIMARY KEY, cwd TEXT);
+    CREATE TABLE activity_files (path TEXT PRIMARY KEY); INSERT INTO activity_files VALUES ('k');`);
+  ensureActivityCwd(db);
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM activity_files").get() as { n: number }).n, 0);
+});
+
 test("the view splits each period's fee by repository and rolls it up to projects and clients", () => {
   const db = fixture();
   db.exec(`CREATE TABLE activity_usage (id INTEGER PRIMARY KEY, path TEXT NOT NULL, date TEXT NOT NULL, source TEXT NOT NULL, project TEXT NOT NULL, cwd TEXT, model TEXT NOT NULL,
@@ -146,6 +177,7 @@ test("the view splits each period's fee by repository and rolls it up to project
   add.run("d", "2026-11-03", "claude-code", "keel", `${root}/keel`, model, 9_000_000); // before the period
   add.run("e", "2026-11-07", "codex", "keel", `${root}/keel`, "gpt-5", 9_000_000); // another subscription
   add.run("f", "2026-11-07", "claude-code", "keel", `${root}/keel`, "unknown-model", 5);
+  add.run("g", "2026-11-08", "claude-code", "keel", "/Users/me/Downloads/keel", model, 1_000_000); // same name, not the repo
   const acme = saveClient(db, { ...client, name: "Acme", internal: false, sendInvoices: true });
   assignRepo(db, "keel", saveProject(db, { clientId: acme, name: "Portal", sendInvoices: null }));
   saveTerm(db, { subscription: "claude", planName: "Max", feeUsd: 200, renewalDay: 4, startsOn: "2026-11-04" });
@@ -158,10 +190,12 @@ test("the view splits each period's fee by repository and rolls it up to project
   const [period] = claude.periods;
   assert.equal(period.open, true);
   assert.deepEqual(period.rows.map((r) => [r.label, r.chargeUsd, r.projectName, r.clientName]).sort(), [
-    ["can", 100, "Unassigned", "Unassigned"],
-    ["hazel-care", 50, "Unassigned", "Unassigned"],
-    ["keel", 50, "Portal", "Acme"],
+    ["can", 80, "Unassigned", "Unassigned"],
+    ["hazel-care", 40, "Unassigned", "Unassigned"],
+    ["keel", 40, "Portal", "Acme"],
+    ["keel", 40, "Unassigned", "Unassigned"],
   ]);
+  assert.equal(period.rows.find((r) => r.key === "folder:keel")?.repoId, null);
   assert.deepEqual(period.unpricedModels, ["unknown-model"]);
   assert.equal(view.subscriptions.find((s) => s.id === "codex")!.periods.length, 0);
   assert.equal(view.repos.find((r) => r.id === "keel")!.projectId, readRegister(db).projects[0].id);

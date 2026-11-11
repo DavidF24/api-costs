@@ -56,9 +56,12 @@ export function billingPeriods(terms: Term[], today: string, limit = 12): Period
         const full = renewalDate(y, m, term.renewalDay, n);
         if (full <= start) continue; // the renewal day this month is not after the start
         const end = stop && full > stop ? stop : full;
-        // A plan change part way through a cycle: charge the old fee for the days it covered.
-        const feeUsd = end === full ? term.feeUsd : Math.round((term.feeUsd * days(start, end)) / days(start, full) * 100) / 100;
-        mine.push({ subscription: sub.id, termId: term.id, planName: term.planName, feeUsd, start, end, open: today < end, prorated: end !== full });
+        // The billing cycle this period sits in. A term that starts between renewal days, or
+        // is cut short by the next fee, covers only part of a cycle and pays only for its days.
+        const cycleStart = renewalDate(y, m, term.renewalDay, n - 1);
+        const partial = start !== cycleStart || end !== full;
+        const feeUsd = partial ? Math.round((term.feeUsd * days(start, end)) / days(cycleStart, full) * 100) / 100 : term.feeUsd;
+        mine.push({ subscription: sub.id, termId: term.id, planName: term.planName, feeUsd, start, end, open: today < end, prorated: partial });
         start = end;
       }
     });

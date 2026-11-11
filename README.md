@@ -197,14 +197,19 @@ so costs can be passed through on monthly statements and invoices.
   Claude Code, ChatGPT by Codex, Grok by Grok. Using half a plan does not halve its
   cost. Charges are in cents that add up exactly to the fee. The current period is a
   running estimate; earlier periods are closed. A new fee applies from its own start
-  date, and a period cut short by a plan change charges the old fee for its days only.
-  Models without a verified API price are listed and left out of the shares.
+  date. A period that covers only part of a billing cycle (a fee that starts between
+  renewal days, or one cut short by the next fee) is charged for its days only. Models
+  without a verified API price are listed and left out of the shares; if nothing in a
+  period is priced, the fee shows as "Usage not priced".
 - **Repositories.** Repositories are found in `CODE_ROOT` (default `~/code`). Usage in a
   worktree (`<repo>/.claude/worktrees/…`, `<repo>/.worktrees/…`, `<repo>.worktrees.…`,
   `~/.codex/worktrees/<id>/<repo>`) or a subfolder counts toward its repository. A project
   folder in the code folder without git also counts as one unit; inside a folder that
-  groups repositories (such as `ms-pro`), the next level down is the unit. Older Claude
-  history without a recorded folder is traced through Claude's encoded project folder.
+  groups repositories (such as `ms-pro`), the next level down is the unit. Any other
+  worktree still on disk is traced through its `.git` file. A recorded folder outside the
+  code folder is never matched by name, so `~/Downloads/keel` is not billed to `keel`.
+  Older history without a recorded folder is traced through Claude's encoded project
+  folder, or a unique repository name.
   The first start after upgrading re-reads all local history once to record the folders.
 - **Clients and projects.** Each client has billing contact details, payment terms, an
   internal flag and a **Send invoices** setting. Each project follows its client's
