@@ -475,3 +475,12 @@ ESLint reports one existing warning in openrouter.ts. The price check was run
 read-only on the live database and lists none awaiting. On a copy of the database
 with a test model added, the notice appeared on the Activity tab and the API listed
 all three kinds. `npm run build` passes with DATABASE_PATH set to the copy (a fresh worktree has no data directory, as before).
+
+Independent review (fresh Opus 5.5, full tier): Ready, with low-severity findings,
+all fixed. Models that have a price entry but used a category with no rate are now
+listed too. Suffix variants merge under the base ID. The route is local-only. The
+script rejects unknown options (exit 1). The README now says other-provider and
+internal models still count as unpriced usage. The notice is no longer a late
+live region. The reviewer confirmed that, on the live database, only the
+claude-fable-5-2 ($94.06) and gpt-6.1-terra ($0.27) estimates change. Subscription
+shares for periods since Nov 3 shift accordingly. Nothing has been invoiced yet.

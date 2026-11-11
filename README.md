@@ -164,7 +164,8 @@ Known Grok 4.5/4.6/4.7 `-build` labels use their public model's baseline. Intern
 labels such as `codex-auto-review` have no verified public price and stay unpriced.
 Provider-prefixed IDs such as `deepseek/...` are runs routed through another provider
 (for example OpenRouter), billed on that provider's account rather than the
-subscription, so they are left out of subscription comparisons and splits.
+subscription. Like internal labels, they get no share of a subscription fee, but
+their tokens still count as unpriced usage in coverage and period notes.
 Coverage is the share of recorded tokens priced; it cannot measure missing logs or
 Grok Bot tokens that were never provided by the source.
 
@@ -187,7 +188,7 @@ in the dashboard; the local host must be available. Its procedure is:
    nothing changes; report changed rates/coverage or a failure needing attention.
 
 **New models.** The Activity tab lists any model in the saved history that the
-catalog does not price yet, with the day it first appeared, as soon as the next sync
+catalog does not price yet (or that used a token category with no verified rate), with the day it first appeared, as soon as the next sync
 indexes it; internal labels and other-provider runs are listed separately as not
 priced by design. `node scripts/check-activity-pricing.ts --new` prints those
 models and exits 2 when one is waiting, or prints nothing and exits 0, so a daily

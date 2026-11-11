@@ -11,6 +11,11 @@ import { readUnpricedModels } from "../src/lib/activity/unpriced.ts";
 
 type Row = UsageForCost & { source: string; model: string };
 const args = process.argv.slice(2);
+const unknown = args.filter((a) => a.startsWith("--") && a !== "--new");
+if (unknown.length > 0) {
+  console.error(`Unknown option ${unknown.join(", ")}. Usage: check-activity-pricing.ts [--new] [path/to/costs.sqlite]`);
+  process.exit(1);
+}
 const newOnly = args.includes("--new");
 const path = args.find((a) => !a.startsWith("--")) ?? process.env.DATABASE_PATH ?? join(process.cwd(), "data/costs.sqlite");
 const sqlite = new Database(path, { readonly: true, fileMustExist: true });

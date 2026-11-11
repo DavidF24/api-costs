@@ -24,7 +24,7 @@ export function NewModelsNotice() {
   const line = (m: UnpricedModel) => `${m.model} (${getSourceLabel(m.source)}, first seen ${day(m.firstSeen)}, ${formatCompact(m.tokens)} tokens)`;
 
   return (
-    <div role="status" className="rounded-lg border border-card-border bg-card px-4 py-3 text-xs space-y-1">
+    <div className="rounded-lg border border-card-border bg-card px-4 py-3 text-xs space-y-1">
       {awaiting.length > 0 && <>
         <p className="font-medium text-sm">{awaiting.length === 1 ? "New model awaiting a verified price" : `${awaiting.length} new models awaiting verified prices`}</p>
         <ul className="list-disc pl-5 text-muted">{awaiting.map((m) => <li key={`${m.source}|${m.model}`} className="break-words">{line(m)}</li>)}</ul>

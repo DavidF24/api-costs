@@ -21,7 +21,7 @@ test("unpriced models are classified, never guessed", () => {
   assert.equal(classifyUnpriced("deepseek/deepseek-v4.1-flash-1017"), "other-provider");
 });
 
-test("readUnpricedModels lists only models with tokens and no catalog price, newest first", () => {
+test("readUnpricedModels lists models with tokens and no usable price, merged by base ID, newest first", () => {
   const db = new Database(":memory:");
   db.exec(`CREATE TABLE activity_usage (date TEXT, source TEXT, model TEXT, input INTEGER, output INTEGER,
     cache_read INTEGER, cache_write_5m INTEGER, cache_write_1h INTEGER)`);
@@ -32,9 +32,12 @@ test("readUnpricedModels lists only models with tokens and no catalog price, new
   add.run("2026-11-10", "claude-code", "claude-new-6", 50, 0);
   add.run("2026-11-10", "grok-bot", "grok-x", 1, 1);
   add.run("2026-11-10", "codex", "gpt-empty", 0, 0);
+  add.run("2026-11-03", "claude-code", "claude-new-6-20261101", 9, 0);
+  db.prepare(`INSERT INTO activity_usage VALUES ('2026-11-04','codex','gpt-5.4',1,1,0,5,0)`).run();
   const out = readUnpricedModels(db);
   assert.deepEqual(out.map((m) => [m.model, m.kind, m.firstSeen, m.lastSeen, m.tokens]), [
-    ["claude-new-6", "awaiting", "2026-11-09", "2026-11-10", 151],
+    ["gpt-5.4", "awaiting", "2026-11-04", "2026-11-04", 7],
+    ["claude-new-6", "awaiting", "2026-11-03", "2026-11-10", 160],
     ["codex-auto-review", "internal", "2026-11-02", "2026-11-02", 10],
   ]);
 });
