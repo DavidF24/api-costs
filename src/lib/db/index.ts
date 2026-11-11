@@ -5,6 +5,7 @@ import * as schema from "./schema";
 import { collapseNullDedupKeys } from "./migrate-dedup";
 import { ensureQuotaHistory } from "./quota-history";
 import { ensureApiKeys } from "../api-keys/store";
+import { ensureActivityCwd, ensureDevCosts } from "../dev-costs/store";
 
 export const databasePath = process.env.DATABASE_PATH || join(process.cwd(), "data", "costs.sqlite");
 
@@ -21,6 +22,8 @@ function getDatabase() {
     collapseNullDedupKeys(sqlite);
     ensureQuotaHistory(sqlite);
     ensureApiKeys(sqlite);
+    ensureActivityCwd(sqlite);
+    ensureDevCosts(sqlite);
     globalForDb.__db = sqlite;
   }
   return globalForDb.__db;

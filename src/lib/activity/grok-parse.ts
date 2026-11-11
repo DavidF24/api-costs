@@ -13,7 +13,7 @@ function iso(ms: unknown): string | null {
   return new Date(ms).toISOString();
 }
 
-function collector(sessionId: string, project: string) {
+function collector(sessionId: string, project: string, cwd?: string) {
   const rows = new Map<string, ClaudeUsageRow>();
   let start: string | null = null;
   let end: string | null = null;
@@ -24,7 +24,7 @@ function collector(sessionId: string, project: string) {
     const key = `${date}|${model}`;
     let r = rows.get(key);
     if (!r) {
-      r = { date, project, model, messages: 0, input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 };
+      r = { date, project, ...(cwd ? { cwd } : {}), model, messages: 0, input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 };
       rows.set(key, r);
     }
     return r;
@@ -35,8 +35,8 @@ function collector(sessionId: string, project: string) {
   return { row, finish };
 }
 
-export function createGrokAccumulator(sessionId: string, project: string, toDate: (iso: string) => string) {
-  const c = collector(sessionId, project);
+export function createGrokAccumulator(sessionId: string, project: string, toDate: (iso: string) => string, cwd?: string) {
+  const c = collector(sessionId, project, cwd);
   const messages = new Set<string>();
   const usageSeen = new Set<string>();
   let recognized = false;

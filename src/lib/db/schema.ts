@@ -76,6 +76,7 @@ export const activityUsage = sqliteTable(
     date: text("date").notNull(), // ISO date, Eastern
     source: text("source").notNull(), // "claude-code" | "codex"
     project: text("project").notNull(),
+    cwd: text("cwd"), // full working folder; NULL for rows indexed before it was kept
     model: text("model").notNull(),
     messages: integer("messages").notNull(),
     input: integer("input").notNull(),

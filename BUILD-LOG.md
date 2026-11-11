@@ -414,3 +414,33 @@ in the same order. gpt-6-astra showed its rate row and then 121.1M / 3.3B / 0 / 
 on Tokens. At 320px the page stayed within the viewport and the table scrolled
 inside its card. The Activity tab still rendered. The preview was stopped and its
 temporary port rows removed. The installed service on port 4100 was not restarted.
+
+
+# Development costs: subscription split by repository
+
+Assignment: Claude Code · "Development costs and billing dashboard" · d66b7d84-ab90-4f66-918b-4c5a6ad48753 · desktop local_158a89cf-b7ee-4ece-88c3-813c52a5cf34
+
+The owner wants software costs by repository, project and client, passed through at
+cost on monthly statements, with an invoicing toggle per client and project. This
+first slice adds a Development costs tab. Each subscription billing period's whole fee
+is split by each repository's share of that tool's API-equivalent usage: Claude by
+Claude Code, ChatGPT by Codex, Grok by Grok. Cents add up exactly to the fee. A period
+covering part of a billing cycle is prorated. Activity rows now keep the full working
+folder (nullable `cwd`). Worktrees, subfolders, plain project folders and old Claude
+keys resolve to their repository. A marker row triggers one re-read of local history;
+rows for deleted transcripts are kept. Clients, projects, repository links and dated
+fees are stored in new local `dc_*` tables. `/data/` is fully git-ignored.
+`drizzle.config.ts` now limits push to the schema's tables. Before, push offered to
+drop the api_keys and dc_* tables.
+
+Validation: 124 tests pass. TypeScript, eslint (one existing openrouter.ts warning) and
+the production build pass. A preview on 127.0.0.1:5143, using a database copy with
+auto-sync off, re-read 5,651 files without errors. Of each current period's usage,
+97–99% resolved to a repository or project folder. Adding a client and project and
+linking keel rolled up correctly. 375px width stayed within the viewport. drizzle-kit
+push on a database copy now reports no changes; on an empty file it creates the tables.
+
+Independent review: a fresh Opus 5.5 reviewer found Not ready on 4124a34 (whole fee for
+a partial first period; re-read skippable by drizzle-kit; name fallback for recorded
+folders; and four minor items). All were fixed in acfad63, and a fresh recheck marked
+it Ready. That recheck flagged the drizzle-kit drop risk, fixed in this commit.

@@ -1,7 +1,7 @@
 import { createReadStream, readdirSync, statSync } from "node:fs";
 import { join, basename } from "node:path";
 
-export type GrokFile = { path: string; key: string; source: "grok" | "grok-bot"; isSubagent: boolean; sessionId: string; project: string };
+export type GrokFile = { path: string; key: string; source: "grok" | "grok-bot"; isSubagent: boolean; sessionId: string; project: string; cwd?: string };
 function dirs(path: string): string[] {
   try { return readdirSync(path); } catch { return []; }
 }
@@ -21,8 +21,9 @@ export function listGrokFiles(sessions: string, botPersistence: string): GrokFil
     for (const id of dirs(join(sessions, project))) {
       if (!/^[a-f0-9-]{36}$/.test(id)) continue;
       let name = project;
-      try { name = basename(decodeURIComponent(project)); } catch { /* keep encoded name */ }
-      add({ path: join(sessions, project, id, "updates.jsonl"), key: `grok:${id}`, source: "grok", isSubagent: false, sessionId: id, project: name });
+      let cwd: string | undefined;
+      try { cwd = decodeURIComponent(project); name = basename(cwd); } catch { /* keep encoded name */ }
+      add({ path: join(sessions, project, id, "updates.jsonl"), key: `grok:${id}`, source: "grok", isSubagent: false, sessionId: id, project: name, cwd });
     }
   }
   for (const filename of dirs(botPersistence)) {
