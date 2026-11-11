@@ -10,6 +10,7 @@ import { ApiActivityChart } from "./ApiActivityChart";
 import { EstimateNote } from "./ApiEquivalents";
 import { DateRangePicker } from "./DateRangePicker";
 import { ModelsUsed } from "./ModelsUsed";
+import { NewModelsNotice } from "./NewModelsNotice";
 import { ToolsPanel } from "./ToolsPanel";
 import { useActivityRange } from "./useActivityRange";
 
@@ -50,6 +51,7 @@ export function ActivitySection({ year, initial, today, serverNow, active = true
       </dl>
       {!data && <p role="status" className={`text-sm ${state === "error" ? "text-critical" : "text-muted"}`}>{state === "error" ? "Couldn't load this range. Reload to try again." : "Loading…"}</p>}
       {scope !== "api" && <EstimateNote />}
+      {scope !== "api" && <NewModelsNotice />}
       {scope === "combined" && <p className="text-xs text-muted">Recorded output tokens combine both sources. Session and message totals cover local subscriptions only; Grok Bot has no token data. A + marks a partial estimate.</p>}
       {scope !== "api" && <div className="bg-card border border-card-border rounded-xl p-4 sm:p-5">
         <h3 className="text-sm font-medium mb-3">Messages per day, last 12 months</h3>

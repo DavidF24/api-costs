@@ -1,7 +1,7 @@
 // Current standard, short-context USD list rates per million tokens. This is a
 // what-would-it-cost-now comparison, not historical billing. Keep this reviewed
 // snapshot in Git; see README's weekly pricing maintenance procedure.
-export const PRICING_VERIFIED_ON = "2026-10-25";
+export const PRICING_VERIFIED_ON = "2026-11-11";
 export const PRICING_SOURCES = [
   { name: "Anthropic", url: "https://platform.claude.com/docs/en/about-claude/pricing" },
   { name: "OpenAI", url: "https://developers.openai.com/api/docs/pricing" },
@@ -38,8 +38,9 @@ function grok(input: number, output: number, cacheRead: number): ModelPrice {
 
 export const PRICES: Record<string, ModelPrice> = {
   // Anthropic: official pricing page above, including the documented cache
-  // discounts for Fable/Mythos 5.1 and Opus/Sonnet 5.5. Haiku 5.5 uses its
+  // discounts for Fable 5.2 and Fable/Mythos 5.1 and Opus/Sonnet 5.5. Haiku 5.5 uses its
   // <=100k prompt baseline. Long-context and speed premiums are excluded.
+  "claude-fable-5-2": claude(8, 40, 0.2),
   "claude-fable-5-1": claude(10, 50, 0.25),
   "claude-mythos-5-1": claude(10, 50, 0.25),
   "claude-fable-5": claude(10, 50),
@@ -60,8 +61,9 @@ export const PRICES: Record<string, ModelPrice> = {
   // OpenAI: Standard (not Flex/Batch/Fast) from the official pricing page.
   "gpt-6-astra": openai(10, 50, 1, 12.5),
   "gpt-6.1-sol": openai(2, 10, 0.1, 2.5),
+  "gpt-6.1-terra": openai(1, 5, 0.05, 1.25),
   "gpt-6-luna": openai(0.1, 0.5, 0.01, 0.125),
-  // Promotional price: official page guarantees at least through 2026-11-21.
+  // Promotional price: official page available until 2026-11-30.
   "gpt-5.6-sol": openai(4, 20, 0.4, 5),
   // Older model pages: https://developers.openai.com/api/docs/models/<model-id>
   // GPT-6 Sol and GPT-5.6 Terra/Luna document cache writes at 1.25x input.
@@ -85,9 +87,12 @@ export const PRICES: Record<string, ModelPrice> = {
   "grok-4.20-multi-agent-0309": grok(1.25, 2.5, 0.2),
   "grok-4.20-0309-reasoning": grok(1.25, 2.5, 0.2),
   "grok-4.20-0309-non-reasoning": grok(1.25, 2.5, 0.2),
-  // codex-auto-review is an internal label, not a documented public model ID.
-  // Unknown models stay unpriced until a matching official rate is verified.
+  // Unknown models stay unpriced until a matching official rate is verified;
+  // unpriced.ts lists them for the dashboard and the pricing check.
 };
+
+// Labels that are not public API models, so no official price will ever exist.
+export const INTERNAL_MODELS = new Set(["codex-auto-review"]);
 
 export function normalizeModelId(model: string): string {
   let m = model.replace(/\[[^\]]*\]$/, "");
