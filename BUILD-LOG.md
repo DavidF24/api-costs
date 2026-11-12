@@ -554,3 +554,17 @@ are fixed in the follow-up commit:
   region, and the Open buttons have labels. Removing a line asks for confirmation.
 
 Tests: 138 passed. ESLint: no errors.
+
+Recheck (fresh Opus 5.5): Not ready. Items 1, 2 and 4–10 were confirmed fixed. Item 3 was
+only partly fixed: the migration flagged only clients whose projects disagreed with each
+other. It missed a client set to send whose only linked project was track only. Fixed in
+the next commit:
+
+- A client is now flagged when any linked project's own choice differs from the client's
+  setting after the move.
+- Issuing is also refused when the draft used a tracker table last rebuilt before the
+  month ended (low finding).
+- The Issue confirmation no longer names a document type that issuing might change (nit).
+
+Tests cover both cases. Running the migration on a fresh copy of the live database linked
+hardmoneyhattie.com and novus/rustica to their clients and flagged no conflicts.

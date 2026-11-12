@@ -244,7 +244,7 @@ export function issueInvoice(db: Database.Database, id: number, issuedOn: string
     const r = db.prepare(`SELECT status, client_id, month, source FROM dc_invoices WHERE id=?`).get(id) as { status: Status; client_id: number; month: string; source: string } | undefined;
     if (!r) throw new NotFound("Invoice not found");
     if (r.status !== "draft") throw new Conflict("Only a draft can be issued");
-    if (builtBeforeMonthEnd(r.month, JSON.parse(r.source) as InvoiceSource)) throw new Conflict("This draft was built before the month ended. Rebuild it, check it, then issue it.");
+    if (builtBeforeMonthEnd(r.month, JSON.parse(r.source) as InvoiceSource)) throw new Conflict("This draft was built before the month ended, or from tracker data rebuilt before then. Rebuild it once the tracker has caught up, check it, then issue it.");
     const c = db.prepare(`SELECT name, contact, email, address, payment_terms, send_invoices FROM dc_clients WHERE id=?`).get(r.client_id) as
       { name: string; contact: string; email: string; address: string; payment_terms: string; send_invoices: number } | undefined;
     if (!c) throw new NotFound("Client not found");
@@ -259,9 +259,12 @@ export function issueInvoice(db: Database.Database, id: number, issuedOn: string
   }).immediate();
 }
 
-// True when the draft's numbers were taken before its month was over (Eastern time).
+// True when the draft's numbers were taken before its month was over (Eastern time), or
+// the tracker's billing table it read had last been rebuilt before then, so the month's
+// last hours could be missing.
 export function builtBeforeMonthEnd(month: string, source: InvoiceSource): boolean {
-  return easternDate(source.generatedAt) < monthRange(month)[1];
+  const end = monthRange(month)[1];
+  return easternDate(source.generatedAt) < end || (source.trackerBuiltAt !== null && easternDate(source.trackerBuiltAt) < end);
 }
 
 // A draft is deleted outright; an issued document is marked void and kept, number and all.

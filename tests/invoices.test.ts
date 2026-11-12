@@ -172,6 +172,9 @@ test("a draft built before its month ended cannot be issued until it is rebuilt"
   // Nov 30, 11 PM Eastern is still November; 1 AM Eastern on Dec 1 is after it.
   assert.equal(builtBeforeMonthEnd("2026-11", builtOn("2026-12-01T04:00:00Z")), true);
   assert.equal(builtBeforeMonthEnd("2026-11", builtOn("2026-12-01T06:00:00Z")), false);
+  // Built after the month, but from a tracker table last rebuilt during it.
+  assert.equal(builtBeforeMonthEnd("2026-11", { ...builtOn("2026-12-02T15:00:00Z"), trackerBuiltAt: "2026-11-30T20:00:00Z" }), true);
+  assert.equal(builtBeforeMonthEnd("2026-11", { ...builtOn("2026-12-02T15:00:00Z"), trackerBuiltAt: "2026-12-02T09:00:00Z" }), false);
   const id = saveDraft(db, c, "2026-11", [line], builtOn("2026-11-20T15:00:00Z"));
   assert.throws(() => issueInvoice(db, id, "2026-12-02", blankProfile), /Rebuild it/);
   saveDraft(db, c, "2026-11", [line], builtOn("2026-12-02T15:00:00Z"));

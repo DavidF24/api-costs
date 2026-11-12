@@ -63,8 +63,9 @@ export function ensureDevCosts(db: Database.Database) {
 // client, with the project as an optional label. Runs once (marker row). Each linked
 // repository keeps its client and takes its old project's name as its label. Invoicing
 // becomes a client setting: a client is set to send invoices when any of its projects was
-// set to send them. Where a client's linked projects disagreed (some sent, some track
-// only), their names are kept in dc_meta ('repo_billing_conflicts') and shown on the tab.
+// set to send them. Where any linked project's own choice differs from the client's new
+// setting (say a track-only project under a client that sends invoices), the client's name
+// is kept in dc_meta ('repo_billing_conflicts') and shown on the tab.
 // The old project tables are left in place, unused.
 function migrateToRepoBilling(db: Database.Database) {
   const columns = () => (db.prepare(`SELECT name FROM pragma_table_info('dc_clients')`).all() as { name: string }[]).map((c) => c.name);
@@ -76,9 +77,15 @@ function migrateToRepoBilling(db: Database.Database) {
     if (!cols.includes("hourly_rate_usd")) db.exec(`ALTER TABLE dc_clients ADD COLUMN hourly_rate_usd REAL NOT NULL DEFAULT 0 CHECK (hourly_rate_usd >= 0)`);
     if (!cols.includes("idle_cutoff_min")) db.exec(`ALTER TABLE dc_clients ADD COLUMN idle_cutoff_min INTEGER NOT NULL DEFAULT ${DEFAULT_IDLE_CUTOFF_MIN} CHECK (idle_cutoff_min BETWEEN 0 AND 240)`);
     if (marked()) return;
-    const conflicts = (db.prepare(`SELECT c.name FROM dc_clients c JOIN dc_projects p ON p.client_id = c.id
-        WHERE EXISTS (SELECT 1 FROM dc_repo_projects rp WHERE rp.project_id = p.id)
-        GROUP BY c.id HAVING COUNT(DISTINCT COALESCE(p.send_invoices, c.send_invoices)) > 1 ORDER BY c.name`).all() as { name: string }[]).map((r) => r.name);
+    // The client's setting after the move: on if it was on, or if any project was set to send.
+    const conflicts = (db.prepare(`WITH final AS (
+        SELECT c.id, c.name, c.send_invoices AS own,
+          MAX(c.send_invoices, COALESCE((SELECT MAX(p.send_invoices) FROM dc_projects p WHERE p.client_id = c.id), 0)) AS send
+        FROM dc_clients c)
+      SELECT f.name FROM final f WHERE EXISTS (
+        SELECT 1 FROM dc_projects p JOIN dc_repo_projects rp ON rp.project_id = p.id
+        WHERE p.client_id = f.id AND COALESCE(p.send_invoices, f.own) <> f.send)
+      ORDER BY f.name`).all() as { name: string }[]).map((r) => r.name);
     db.exec(`INSERT OR IGNORE INTO dc_repos (repo, client_id, display_name, project_name, hourly_rate_usd)
         SELECT rp.repo, p.client_id, '', p.name, NULL FROM dc_repo_projects rp JOIN dc_projects p ON p.id = rp.project_id;
       UPDATE dc_clients SET send_invoices = 1

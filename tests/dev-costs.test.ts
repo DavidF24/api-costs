@@ -157,27 +157,29 @@ test("existing project links move to repository links once, keeping the client a
     CREATE TABLE dc_projects (id INTEGER PRIMARY KEY, client_id INTEGER NOT NULL REFERENCES dc_clients(id), name TEXT NOT NULL COLLATE NOCASE,
       send_invoices INTEGER, created_at TEXT NOT NULL, UNIQUE (client_id, name)) STRICT;
     CREATE TABLE dc_repo_projects (repo TEXT PRIMARY KEY, project_id INTEGER NOT NULL REFERENCES dc_projects(id) ON DELETE CASCADE) STRICT;
-    INSERT INTO dc_clients (id, name, internal, send_invoices, created_at) VALUES (1, 'Hattie', 0, 0, 'x'), (2, 'Renovo', 1, 0, 'x'), (3, 'Acme', 0, 1, 'x');
+    INSERT INTO dc_clients (id, name, internal, send_invoices, created_at) VALUES (1, 'Hattie', 0, 0, 'x'), (2, 'Renovo', 1, 0, 'x'), (3, 'Acme', 0, 1, 'x'), (4, 'Beta', 0, 1, 'x');
     INSERT INTO dc_projects (id, client_id, name, send_invoices, created_at) VALUES (1, 1, 'Hattie App', 1, 'x'), (2, 2, 'Tools', NULL, 'x'),
-      (3, 3, 'Portal', NULL, 'x'), (4, 3, 'Internal tools', 0, 'x'), (5, 3, 'Unlinked', 0, 'x');
-    INSERT INTO dc_repo_projects VALUES ('hattie.com', 1), ('tools', 2), ('portal', 3), ('acme-tools', 4);`);
+      (3, 3, 'Portal', NULL, 'x'), (4, 3, 'Internal tools', 0, 'x'), (5, 3, 'Unlinked', 0, 'x'), (6, 4, 'Beta tools', 0, 'x');
+    INSERT INTO dc_repo_projects VALUES ('hattie.com', 1), ('tools', 2), ('portal', 3), ('acme-tools', 4), ('beta-tools', 6);`);
   ensureDevCosts(db);
   const reg = readRegister(db);
   assert.deepEqual(reg.repoLinks, {
     "acme-tools": { clientId: 3, displayName: "", projectName: "Internal tools", hourlyRateUsd: null },
+    "beta-tools": { clientId: 4, displayName: "", projectName: "Beta tools", hourlyRateUsd: null },
     "hattie.com": { clientId: 1, displayName: "", projectName: "Hattie App", hourlyRateUsd: null },
     portal: { clientId: 3, displayName: "", projectName: "Portal", hourlyRateUsd: null },
     tools: { clientId: 2, displayName: "", projectName: "Tools", hourlyRateUsd: null },
   });
-  // Acme sent invoices but one linked project was track only: flagged for the owner to check.
-  assert.deepEqual(readMigrationConflicts(db), ["Acme"]);
+  // Acme sent invoices but one linked project was track only; Beta's only linked project was
+  // track only. Both are flagged. Hattie's project was promoted to send: no conflict left.
+  assert.deepEqual(readMigrationConflicts(db), ["Acme", "Beta"]);
   dismissMigrationConflicts(db);
   assert.deepEqual(readMigrationConflicts(db), []);
-  assert.deepEqual(reg.clients.map((c) => [c.name, c.sendInvoices, c.idleCutoffMin]), [["Acme", true, 10], ["Hattie", true, 10], ["Renovo", false, 10]]);
+  assert.deepEqual(reg.clients.map((c) => [c.name, c.sendInvoices, c.idleCutoffMin]), [["Acme", true, 10], ["Beta", true, 10], ["Hattie", true, 10], ["Renovo", false, 10]]);
   // A second start does not re-copy links that were since changed.
   saveRepoLink(db, link("tools", null));
   ensureDevCosts(db);
-  assert.deepEqual(Object.keys(readRegister(db).repoLinks).sort(), ["acme-tools", "hattie.com", "portal"]);
+  assert.deepEqual(Object.keys(readRegister(db).repoLinks).sort(), ["acme-tools", "beta-tools", "hattie.com", "portal"]);
   assert.deepEqual(readMigrationConflicts(db), []);
 });
 

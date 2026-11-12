@@ -13,7 +13,10 @@ const etFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" })
 const easternToday = () => etFmt.format(new Date());
 const nextMonth = (m: string) => { const [y, n] = m.split("-").map(Number); return n === 12 ? `${y + 1}-01` : `${y}-${String(n + 1).padStart(2, "0")}`; };
 // A draft whose numbers were taken before its month ended must be rebuilt before issuing.
-const builtEarly = (inv: Invoice) => etFmt.format(new Date(inv.source.generatedAt)) < `${nextMonth(inv.month)}-01`;
+const builtEarly = (inv: Invoice) => {
+  const end = `${nextMonth(inv.month)}-01`;
+  return etFmt.format(new Date(inv.source.generatedAt)) < end || (inv.source.trackerBuiltAt !== null && etFmt.format(new Date(inv.source.trackerBuiltAt)) < end);
+};
 const monthLabel = (m: string) => new Date(`${m}-15T12:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
 const shortDate = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 const lastDay = (end: string) => new Date(Date.parse(`${end}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
@@ -166,10 +169,10 @@ function Editor({ invoice: inv, busy, run, close, today }: { invoice: Invoice; b
     </form> : inv.notes && <p className="text-sm whitespace-pre-wrap">{inv.notes}</p>}
     {draft && <div className="flex flex-wrap items-end gap-3 border-t border-card-border pt-4">
       <label className="text-xs text-muted space-y-1 block">Issue date<input type="date" value={issuedOn} onChange={(e) => setIssuedOn(e.target.value)} className={`${inputClass} w-auto`} /></label>
-      <button type="button" disabled={busy || !monthOver || early} title={!monthOver ? "The month has not ended yet" : early ? "Rebuild the draft first" : undefined} onClick={() => { if (confirm(`Issue this ${docName(inv).toLowerCase()}? It gets a number and can no longer be edited.`)) run({ action: "issue", invoiceId: inv.id, issuedOn }); }} className={buttonClass}>Issue {docName(inv).toLowerCase()}</button>
+      <button type="button" disabled={busy || !monthOver || early} title={!monthOver ? "The month has not ended yet" : early ? "Rebuild the draft first" : undefined} onClick={() => { if (confirm("Issue this document? It takes the client's current details, gets a number and can no longer be edited. Clients set to send invoices get an invoice; track-only clients a statement.")) run({ action: "issue", invoiceId: inv.id, issuedOn }); }} className={buttonClass}>Issue</button>
       <button type="button" disabled={busy} onClick={() => { if (confirm("Delete this draft?")) run({ action: "void", invoiceId: inv.id }); }} className={`${buttonClass} hover:text-critical`}>Delete draft</button>
       {!monthOver && <p className="text-xs text-muted w-full">You can issue it once {monthLabel(inv.month)} has ended.</p>}
-      {monthOver && early && <p className="text-xs text-warning w-full">This draft was built before {monthLabel(inv.month)} ended, so it is missing the rest of the month. Rebuild it from the month list above, check it, then issue it.</p>}
+      {monthOver && early && <p className="text-xs text-warning w-full">This draft was built before {monthLabel(inv.month)} ended, or from tracker data last rebuilt before then, so it may miss the end of the month. Rebuild it from the month list above once the tracker has caught up, check it, then issue it.</p>}
     </div>}
     {inv.status === "issued" && inv.kind === "invoice" && <div className="border-t border-card-border pt-4 space-y-3">
       <h4 className="text-sm font-medium">Payments</h4>
