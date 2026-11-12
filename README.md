@@ -6,7 +6,7 @@ API spend uses actual billed amounts from each provider's billing API. Subscript
 
 ## What it does
 
-- **Four tabs** -- Subscriptions keeps quotas, This week and API-equivalent estimates together; API spend contains actual billing and sync history; Activity has a Subscriptions / API / Combined source toggle; Development costs splits subscription fees by repository, project and client. Each view keeps its own date range while switching tabs. Tab links can be bookmarked using `#subscriptions`, `#api`, `#activity` and `#dev-costs`.
+- **Four tabs** -- Subscriptions keeps quotas, This week and API-equivalent estimates together; API spend contains actual billing and sync history; Activity has a Subscriptions / API / Combined source toggle; Development costs splits subscription fees by repository and client and builds monthly invoices and statements. Each view keeps its own date range while switching tabs. Tab links can be bookmarked using `#subscriptions`, `#api`, `#activity` and `#dev-costs`.
 - **At API prices** -- recorded Claude Code, Codex and Grok tokens are valued at current verified standard API rates, including cache discounts and known cache-write rates. All retained tokens are repriced on read, including history first indexed without a price. Cards show pricing coverage and unpriced model names; expand **Model rates and coverage** and switch **Costs** or **Tokens** to inspect the rates or the recorded token counts for the same models, in the same order. Grok Bot has message history only, so its equivalent is unavailable.
 - **Activity scope** -- the toggle filters models and summary totals. Combined output tokens include recorded local and API output; sessions and messages cover local history only. API activity charts only token counts actually reported by providers. Dollar estimates and billed charges are never added together. The message calendars always cover the last year; the range picker controls summaries, tools, API tokens and model details.
 
@@ -223,10 +223,32 @@ so costs can be passed through on monthly statements and invoices.
   Older history without a recorded folder is traced through Claude's encoded project
   folder, or a unique repository name.
   The first start after upgrading re-reads all local history once to record the folders.
-- **Clients and projects.** Each client has billing contact details, payment terms, an
-  internal flag and a **Send invoices** setting. Each project follows its client's
-  setting unless it is set to **Send invoices** or **Track only**. Link each repository
-  to a project; unlinked usage shows as Unassigned. Costs are passed through at cost.
+- **Clients and repositories.** Each client has billing contact details, payment terms,
+  an internal flag, a **Send invoices** setting (off = track only), an hourly rate and an
+  idle cutoff. Link each repository straight to a client. It can have a name the client
+  sees in place of the folder name, an optional project name and its own hourly rate.
+  Repositories of one client with the same project name are billed together under that
+  project. Unlinked usage and time show as not linked to a client.
+- **Monthly invoices and statements.** One document per client per calendar month
+  (Eastern time). A draft holds:
+  - tracked hours for each of the client's repositories, at the repository's rate or the
+    client's;
+  - each repository's share of every subscription period that closed in that month, at
+    cost (a period ending Nov 3 is billed in November).
+  Rebuild a draft to refresh its numbers, or edit, add and remove lines (a negative
+  amount is a credit). Issue it once the month has ended: it gets a number (INV-2026-001,
+  or STM-2026-001 for a track-only statement), a due date from "Net N" payment terms,
+  and a locked copy of the bill-to and from details. Record payments against issued
+  invoices; void an issued document to bill the month again (it stays in the history).
+  **Print or save PDF** opens a printable page. Your own business details for the
+  "From" block are under **Your billing details**.
+- **Tracked hours.** Hours come from the productivity tracker's `sample_projects` table
+  (`TRACKER_DB_PATH`, default
+  `~/code/local-tools/productivity-tracking/data/activity.db`), opened read-only. Each
+  30-second sample of Claude or Codex in front, with a known project, counts when you
+  were active or had been idle no longer than the client's cutoff (default 10 minutes; 0
+  counts active time only). Samples the tracker could not tie to a project are never
+  billed. The tab shows when the tracker last rebuilt that table.
 
 Client details are stored only in the local database in `data/`, which Git ignores.
 

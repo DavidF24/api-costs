@@ -7,7 +7,7 @@ import Database from "better-sqlite3";
 import { billingPeriods, renewalDate, splitFee, type Term } from "../src/lib/dev-costs/split.ts";
 import { createRepoResolver, encodeClaudeDir, listRepos, type Repo } from "../src/lib/dev-costs/repos.ts";
 import {
-  assignRepo, Conflict, deleteClient, deleteProject, ensureActivityCwd, ensureDevCosts, readFolderUsage, readRegister, saveClient, saveProject, saveTerm,
+  Conflict, deleteClient, dismissMigrationConflicts, ensureActivityCwd, ensureDevCosts, readFolderUsage, readMigrationConflicts, readRegister, saveClient, saveRepoLink, saveTerm,
 } from "../src/lib/dev-costs/store.ts";
 import { buildDevCostsView } from "../src/lib/dev-costs/view.ts";
 
@@ -121,25 +121,66 @@ function fixture() {
   ensureDevCosts(db);
   return db;
 }
-const client = { contact: "", email: "", address: "", paymentTerms: "", notes: "" };
+const client = { contact: "", email: "", address: "", paymentTerms: "", notes: "", hourlyRateUsd: 0, idleCutoffMin: 10 };
+const link = (repo: string, clientId: number | null, more: Partial<{ displayName: string; projectName: string; hourlyRateUsd: number | null }> = {}) =>
+  ({ repo, clientId, displayName: "", projectName: "", hourlyRateUsd: null, ...more });
 
-test("projects follow the client's invoicing setting unless they override it", () => {
+test("repositories link straight to a client, with an optional shared project name", () => {
   const db = fixture();
-  const internal = saveClient(db, { ...client, name: "Renovo", internal: true, sendInvoices: false });
-  const outside = saveClient(db, { ...client, name: "Acme", internal: false, sendInvoices: true });
-  const a = saveProject(db, { clientId: internal, name: "Lending", sendInvoices: null });
-  const b = saveProject(db, { clientId: outside, name: "Portal", sendInvoices: null });
-  const c = saveProject(db, { clientId: outside, name: "Internal tools", sendInvoices: false });
-  assignRepo(db, "keel", a);
-  assignRepo(db, "keel", b); // relinking replaces the old link
+  const renovo = saveClient(db, { ...client, name: "Renovo", internal: true, sendInvoices: false });
+  const acme = saveClient(db, { ...client, name: "Acme", internal: false, sendInvoices: true, hourlyRateUsd: 150, idleCutoffMin: 5 });
+  saveRepoLink(db, link("keel", renovo));
+  saveRepoLink(db, link("keel", acme, { projectName: "Portal", displayName: "Customer portal" })); // relinking replaces the old link
+  saveRepoLink(db, link("portal-api", acme, { projectName: "portal", hourlyRateUsd: 175 })); // joins the existing spelling
   const reg = readRegister(db);
-  assert.deepEqual(reg.projects.map((p) => [p.name, p.effectiveSendInvoices]), [["Internal tools", false], ["Lending", false], ["Portal", true]]);
-  assert.deepEqual(reg.repoProjects, { keel: b });
-  assert.throws(() => deleteClient(db, outside), Conflict);
-  deleteProject(db, b);
-  assert.deepEqual(readRegister(db).repoProjects, {});
-  assert.equal(c > 0, true);
-  assert.throws(() => saveClient(db, { ...client, name: "acme", internal: false, sendInvoices: true }), /UNIQUE/);
+  assert.deepEqual(reg.repoLinks, {
+    keel: { clientId: acme, displayName: "Customer portal", projectName: "Portal", hourlyRateUsd: null },
+    "portal-api": { clientId: acme, displayName: "", projectName: "Portal", hourlyRateUsd: 175 },
+  });
+  assert.deepEqual(reg.clients.map((c) => [c.name, c.hourlyRateUsd, c.idleCutoffMin]), [["Acme", 150, 5], ["Renovo", 0, 10]]);
+  assert.throws(() => deleteClient(db, acme), Conflict);
+  saveRepoLink(db, link("keel", null));
+  saveRepoLink(db, link("portal-api", null));
+  deleteClient(db, acme);
+  assert.deepEqual(readRegister(db).repoLinks, {});
+  assert.throws(() => saveClient(db, { ...client, name: "renovo", internal: false, sendInvoices: true }), /UNIQUE/);
+  assert.throws(() => saveRepoLink(db, link("x", 999)), /Client not found/);
+});
+
+test("existing project links move to repository links once, keeping the client and invoicing choice", () => {
+  const db = new Database(":memory:");
+  db.pragma("foreign_keys = ON");
+  // The slice-1 register: client -> project -> repository.
+  db.exec(`CREATE TABLE dc_clients (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE NOCASE, contact TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '', payment_terms TEXT NOT NULL DEFAULT '', internal INTEGER NOT NULL DEFAULT 0, send_invoices INTEGER NOT NULL DEFAULT 1,
+      notes TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL) STRICT;
+    CREATE TABLE dc_projects (id INTEGER PRIMARY KEY, client_id INTEGER NOT NULL REFERENCES dc_clients(id), name TEXT NOT NULL COLLATE NOCASE,
+      send_invoices INTEGER, created_at TEXT NOT NULL, UNIQUE (client_id, name)) STRICT;
+    CREATE TABLE dc_repo_projects (repo TEXT PRIMARY KEY, project_id INTEGER NOT NULL REFERENCES dc_projects(id) ON DELETE CASCADE) STRICT;
+    INSERT INTO dc_clients (id, name, internal, send_invoices, created_at) VALUES (1, 'Hattie', 0, 0, 'x'), (2, 'Renovo', 1, 0, 'x'), (3, 'Acme', 0, 1, 'x'), (4, 'Beta', 0, 1, 'x');
+    INSERT INTO dc_projects (id, client_id, name, send_invoices, created_at) VALUES (1, 1, 'Hattie App', 1, 'x'), (2, 2, 'Tools', NULL, 'x'),
+      (3, 3, 'Portal', NULL, 'x'), (4, 3, 'Internal tools', 0, 'x'), (5, 3, 'Unlinked', 0, 'x'), (6, 4, 'Beta tools', 0, 'x');
+    INSERT INTO dc_repo_projects VALUES ('hattie.com', 1), ('tools', 2), ('portal', 3), ('acme-tools', 4), ('beta-tools', 6);`);
+  ensureDevCosts(db);
+  const reg = readRegister(db);
+  assert.deepEqual(reg.repoLinks, {
+    "acme-tools": { clientId: 3, displayName: "", projectName: "Internal tools", hourlyRateUsd: null },
+    "beta-tools": { clientId: 4, displayName: "", projectName: "Beta tools", hourlyRateUsd: null },
+    "hattie.com": { clientId: 1, displayName: "", projectName: "Hattie App", hourlyRateUsd: null },
+    portal: { clientId: 3, displayName: "", projectName: "Portal", hourlyRateUsd: null },
+    tools: { clientId: 2, displayName: "", projectName: "Tools", hourlyRateUsd: null },
+  });
+  // Acme sent invoices but one linked project was track only; Beta's only linked project was
+  // track only. Both are flagged. Hattie's project was promoted to send: no conflict left.
+  assert.deepEqual(readMigrationConflicts(db), ["Acme", "Beta"]);
+  dismissMigrationConflicts(db);
+  assert.deepEqual(readMigrationConflicts(db), []);
+  assert.deepEqual(reg.clients.map((c) => [c.name, c.sendInvoices, c.idleCutoffMin]), [["Acme", true, 10], ["Beta", true, 10], ["Hattie", true, 10], ["Renovo", false, 10]]);
+  // A second start does not re-copy links that were since changed.
+  saveRepoLink(db, link("tools", null));
+  ensureDevCosts(db);
+  assert.deepEqual(Object.keys(readRegister(db).repoLinks).sort(), ["acme-tools", "beta-tools", "hattie.com", "portal"]);
+  assert.deepEqual(readMigrationConflicts(db), []);
 });
 
 test("adding the folder column clears the change cache once so transcripts are re-read", () => {
@@ -165,7 +206,7 @@ test("the one-time re-read still happens when drizzle-kit already added the colu
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM activity_files").get() as { n: number }).n, 0);
 });
 
-test("the view splits each period's fee by repository and rolls it up to projects and clients", () => {
+test("the view splits each period's fee by repository and names its client and project", () => {
   const db = fixture();
   db.exec(`CREATE TABLE activity_usage (id INTEGER PRIMARY KEY, path TEXT NOT NULL, date TEXT NOT NULL, source TEXT NOT NULL, project TEXT NOT NULL, cwd TEXT, model TEXT NOT NULL,
     messages INTEGER NOT NULL, input INTEGER NOT NULL, output INTEGER NOT NULL, cache_read INTEGER NOT NULL, cache_write_5m INTEGER NOT NULL, cache_write_1h INTEGER NOT NULL, est_cost_usd REAL)`);
@@ -179,7 +220,7 @@ test("the view splits each period's fee by repository and rolls it up to project
   add.run("f", "2026-11-07", "claude-code", "keel", `${root}/keel`, "unknown-model", 5);
   add.run("g", "2026-11-08", "claude-code", "keel", "/Users/me/Downloads/keel", model, 1_000_000); // same name, not the repo
   const acme = saveClient(db, { ...client, name: "Acme", internal: false, sendInvoices: true });
-  assignRepo(db, "keel", saveProject(db, { clientId: acme, name: "Portal", sendInvoices: null }));
+  saveRepoLink(db, link("keel", acme, { projectName: "Portal" }));
   saveTerm(db, { subscription: "claude", planName: "Max", feeUsd: 200, renewalDay: 4, startsOn: "2026-11-04" });
   const view = buildDevCostsView({
     register: readRegister(db), repos, resolver, today: "2026-11-11", repoWindowStart: "2026-08-13",
@@ -198,5 +239,6 @@ test("the view splits each period's fee by repository and rolls it up to project
   assert.equal(period.rows.find((r) => r.key === "folder:keel")?.repoId, null);
   assert.deepEqual(period.unpricedModels, ["unknown-model"]);
   assert.equal(view.subscriptions.find((s) => s.id === "codex")!.periods.length, 0);
-  assert.equal(view.repos.find((r) => r.id === "keel")!.projectId, readRegister(db).projects[0].id);
+  assert.equal(view.repos.find((r) => r.id === "keel")!.link?.clientId, acme);
+  assert.equal(period.rows.find((r) => r.key === "repo:hazel-care")?.displayName, "hazel-care");
 });

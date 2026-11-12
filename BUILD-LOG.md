@@ -484,3 +484,89 @@ internal models still count as unpriced usage. The notice is no longer a late
 live region. The reviewer confirmed that, on the live database, only the
 claude-fable-5-2 ($94.06) and gpt-6.1-terra ($0.27) estimates change. Subscription
 shares for periods since Nov 3 shift accordingly. Nothing has been invoiced yet.
+
+# Monthly invoices and statements, billed by repository
+
+Assignment: Claude Code · "Development costs and billing dashboard" · d66b7d84-ab90-4f66-918b-4c5a6ad48753 · desktop local_158a89cf-b7ee-4ece-88c3-813c52a5cf34
+
+David's direction (2026-11-11). Bill by repository: repositories link straight to a
+client, with an optional project name shared by repositories that are billed together and
+a client-facing name per repository. A client's invoice covers all its repositories.
+Billing is monthly. Hours come from the productivity tracker's derived table
+`sample_projects` (merged in DavidF24/productivity-tracking#1), and stop after a per-client
+idle cutoff (default 10 minutes).
+
+What changed:
+
+- Register. A new `dc_repos` table holds repository, client, display name, project name and
+  an optional rate. `dc_clients` gains `hourly_rate_usd` and `idle_cutoff_min`.
+  - A one-time migration (marker `repo_billing` in `dc_meta`, inside an IMMEDIATE
+    transaction) copies each project link to a repository link. It keeps the client and
+    uses the old project name as the label.
+  - A client is set to send invoices when any of its projects overrode it to send. Live
+    data: Hattie Jo Holm and Jester Concepts each had one project set to send invoices.
+  - The old `dc_projects` and `dc_repo_projects` tables are left in place, unused.
+- Hours. `time.ts` opens the tracker read-only. It filters rows by Eastern date, skips
+  `method = 'none'`, resolves `project_path` with the existing repository resolver, and
+  counts 30 seconds per active sample or idle sample within the cutoff.
+- Invoices. New tables `dc_invoices`, `dc_invoice_lines` and `dc_payments` are STRICT and
+  created in code (already outside drizzle's `tablesFilter`).
+  - One document per client per month. A partial unique index skips void documents.
+  - Drafts are editable and can be rebuilt. Issuing numbers the document (INV/STM per
+    year), sets a due date from "Net N" terms and snapshots the from-profile.
+  - The bill-to details are snapshotted when the draft is built. Issued documents are
+    locked. Void keeps the number. Payments only go against issued documents.
+  - Subscription periods are billed in the month they close.
+- A printable page at `/dev-costs/invoices/[id]` uses the same local-only request check
+  as the API (404 otherwise).
+
+Validation:
+
+- `node --test tests/*.test.ts`: 134 passed. This includes new tests for the migration,
+  repository links, the Eastern month boundary, the idle cutoff, line grouping and rates,
+  draft edits, numbering, locking, payments and voiding.
+- ESLint: no errors. One existing warning in openrouter.ts.
+- `npm run build` against a copy of the live database: passed.
+- Ran against a database copy with the real tracker database, read-only.
+  - The migration linked hardmoneyhattie.com and novus/rustica.
+  - October showed 10.07 h for hardmoneyhattie.com. A draft at a test rate of $125, with
+    one added line, was issued as INV-2026-001, due Nov 27 on Net 15.
+  - A $100 payment left $1,178.75. Issuing with an October date was refused.
+  - Cross-origin POSTs return 403, and the print page returns 404 to a cross-site request.
+
+Independent review (fresh Opus 5.5): Not ready, with 1 blocking finding and 9 others. All
+are fixed in the follow-up commit:
+
+- **Blocking.** A draft built before its month ended can no longer be issued.
+  `issueInvoice` refuses it, and the editor says to rebuild it first.
+- Issuing now re-reads the client. The bill-to details, invoice/statement type, number
+  prefix and due date come from the client as it is at issue time.
+- The migration records clients whose linked projects had different invoicing settings in
+  `dc_meta`. The tab shows them until dismissed, and startup logs them. Live data has none.
+- Payments are refused against statements and above the balance. The check and the insert
+  run in one transaction.
+- The month list shows the document's own total, and flags a draft that no longer matches
+  the current numbers. It also warns when time bills at a $0 rate.
+- Numbering takes the integer maximum, so numbers continue past 999. Rounding clears binary
+  noise first, so 1.005 rounds to 1.01.
+- The migration checks for its marker with a plain read before taking a write lock.
+- Screen fixes: an error is cleared once a later load works, the editor is a labelled
+  region, and the Open buttons have labels. Removing a line asks for confirmation.
+
+Tests: 138 passed. ESLint: no errors.
+
+Recheck (fresh Opus 5.5): Not ready. Items 1, 2 and 4–10 were confirmed fixed. Item 3 was
+only partly fixed: the migration flagged only clients whose projects disagreed with each
+other. It missed a client set to send whose only linked project was track only. Fixed in
+the next commit:
+
+- A client is now flagged when any linked project's own choice differs from the client's
+  setting after the move.
+- Issuing is also refused when the draft used a tracker table last rebuilt before the
+  month ended (low finding).
+- The Issue confirmation no longer names a document type that issuing might change (nit).
+
+Tests cover both cases. Running the migration on a fresh copy of the live database linked
+hardmoneyhattie.com and novus/rustica to their clients and flagged no conflicts.
+
+Final recheck (fresh Opus 5.5): Ready. Its two follow-ups are also done. The draft editor now warns when a draft was built while the tracker could not be read (it has no tracked hours). Wording about migration conflicts was corrected. Those were text-only changes, checked by my own full read, type-check, lint and 138 passing tests.
