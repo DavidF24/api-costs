@@ -55,7 +55,7 @@ export function DevCosts({ active, serverNow }: { active: boolean; serverNow: nu
   return <div className="space-y-10">
     {error && <p role="alert" className="text-critical text-sm">{error}</p>}
     {data.migrationConflicts.length > 0 && <div className={`${card} p-4 text-sm space-y-2`}>
-      <p>Invoicing is now set per client. These clients had projects with different invoicing settings, so check their <strong>Send invoices</strong> setting: {data.migrationConflicts.join(", ")}.</p>
+      <p>Invoicing is now set per client. For these clients a linked project had a different invoicing setting, so check their <strong>Send invoices</strong> setting: {data.migrationConflicts.join(", ")}.</p>
       <button type="button" disabled={busy} onClick={() => post({ action: "dismissMigrationConflicts" })} className={buttonClass}>Done, hide this</button>
     </div>}
     <section aria-labelledby="split-heading" className="space-y-4">

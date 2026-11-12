@@ -145,6 +145,7 @@ function Editor({ invoice: inv, busy, run, close, today }: { invoice: Invoice; b
       <div>
         <h3 className="text-sm font-semibold">{docName(inv)} · {inv.billTo.name} · {monthLabel(inv.month)}</h3>
         <p className="text-xs text-muted">{statusText(inv)}{inv.issuedOn ? ` · issued ${shortDate(inv.issuedOn)}` : ""}{inv.dueOn && inv.kind === "invoice" ? ` · due ${shortDate(inv.dueOn)}` : ""} · built with a {inv.source.idleCutoffMin}-minute idle cutoff</p>
+        {draft && inv.source.trackerBuiltAt === null && <p className="text-xs text-warning">The tracker could not be read when this draft was built, so it has no tracked hours. Rebuild it once the tracker is available.</p>}
       </div>
       <div className="flex flex-wrap gap-2">
         <a href={`/dev-costs/invoices/${inv.id}`} target="_blank" rel="noopener" className={buttonClass}>{draft ? "Preview" : "Print or save PDF"}</a>

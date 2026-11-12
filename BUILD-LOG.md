@@ -568,3 +568,5 @@ the next commit:
 
 Tests cover both cases. Running the migration on a fresh copy of the live database linked
 hardmoneyhattie.com and novus/rustica to their clients and flagged no conflicts.
+
+Final recheck (fresh Opus 5.5): Ready. Its two follow-ups are also done. The draft editor now warns when a draft was built while the tracker could not be read (it has no tracked hours). Wording about migration conflicts was corrected. Those were text-only changes, checked by my own full read, type-check, lint and 138 passing tests.

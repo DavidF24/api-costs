@@ -92,13 +92,13 @@ function migrateToRepoBilling(db: Database.Database) {
         WHERE send_invoices = 0 AND EXISTS (SELECT 1 FROM dc_projects p WHERE p.client_id = dc_clients.id AND p.send_invoices = 1);`);
     if (conflicts.length) {
       db.prepare(`INSERT OR REPLACE INTO dc_meta (key, value) VALUES ('repo_billing_conflicts', ?)`).run(JSON.stringify(conflicts));
-      console.warn(`Development costs: invoicing is now set per client. Check these clients, whose projects had different settings: ${conflicts.join(", ")}`);
+      console.warn(`Development costs: invoicing is now set per client. Check these clients, where a linked project had a different setting from the client: ${conflicts.join(", ")}`);
     }
     db.prepare(`INSERT INTO dc_meta (key, value) VALUES ('repo_billing', ?)`).run(new Date().toISOString());
   }).immediate();
 }
 
-// Clients whose old projects had different invoicing settings when billing moved to
+// Clients where a linked project had a different invoicing setting from the client when billing moved to
 // repositories; shown on the tab until dismissed.
 export function readMigrationConflicts(db: Database.Database): string[] {
   const row = db.prepare(`SELECT value FROM dc_meta WHERE key='repo_billing_conflicts'`).get() as { value: string } | undefined;
