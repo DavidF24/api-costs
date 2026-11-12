@@ -7,7 +7,7 @@ import Database from "better-sqlite3";
 import { billingPeriods, renewalDate, splitFee, type Term } from "../src/lib/dev-costs/split.ts";
 import { createRepoResolver, encodeClaudeDir, listRepos, type Repo } from "../src/lib/dev-costs/repos.ts";
 import {
-  Conflict, deleteClient, ensureActivityCwd, ensureDevCosts, readFolderUsage, readRegister, saveClient, saveRepoLink, saveTerm,
+  Conflict, deleteClient, dismissMigrationConflicts, ensureActivityCwd, ensureDevCosts, readFolderUsage, readMigrationConflicts, readRegister, saveClient, saveRepoLink, saveTerm,
 } from "../src/lib/dev-costs/store.ts";
 import { buildDevCostsView } from "../src/lib/dev-costs/view.ts";
 
@@ -158,19 +158,27 @@ test("existing project links move to repository links once, keeping the client a
       send_invoices INTEGER, created_at TEXT NOT NULL, UNIQUE (client_id, name)) STRICT;
     CREATE TABLE dc_repo_projects (repo TEXT PRIMARY KEY, project_id INTEGER NOT NULL REFERENCES dc_projects(id) ON DELETE CASCADE) STRICT;
     INSERT INTO dc_clients (id, name, internal, send_invoices, created_at) VALUES (1, 'Hattie', 0, 0, 'x'), (2, 'Renovo', 1, 0, 'x'), (3, 'Acme', 0, 1, 'x');
-    INSERT INTO dc_projects (id, client_id, name, send_invoices, created_at) VALUES (1, 1, 'Hattie App', 1, 'x'), (2, 2, 'Tools', NULL, 'x');
-    INSERT INTO dc_repo_projects VALUES ('hattie.com', 1), ('tools', 2);`);
+    INSERT INTO dc_projects (id, client_id, name, send_invoices, created_at) VALUES (1, 1, 'Hattie App', 1, 'x'), (2, 2, 'Tools', NULL, 'x'),
+      (3, 3, 'Portal', NULL, 'x'), (4, 3, 'Internal tools', 0, 'x'), (5, 3, 'Unlinked', 0, 'x');
+    INSERT INTO dc_repo_projects VALUES ('hattie.com', 1), ('tools', 2), ('portal', 3), ('acme-tools', 4);`);
   ensureDevCosts(db);
   const reg = readRegister(db);
   assert.deepEqual(reg.repoLinks, {
+    "acme-tools": { clientId: 3, displayName: "", projectName: "Internal tools", hourlyRateUsd: null },
     "hattie.com": { clientId: 1, displayName: "", projectName: "Hattie App", hourlyRateUsd: null },
+    portal: { clientId: 3, displayName: "", projectName: "Portal", hourlyRateUsd: null },
     tools: { clientId: 2, displayName: "", projectName: "Tools", hourlyRateUsd: null },
   });
+  // Acme sent invoices but one linked project was track only: flagged for the owner to check.
+  assert.deepEqual(readMigrationConflicts(db), ["Acme"]);
+  dismissMigrationConflicts(db);
+  assert.deepEqual(readMigrationConflicts(db), []);
   assert.deepEqual(reg.clients.map((c) => [c.name, c.sendInvoices, c.idleCutoffMin]), [["Acme", true, 10], ["Hattie", true, 10], ["Renovo", false, 10]]);
   // A second start does not re-copy links that were since changed.
   saveRepoLink(db, link("tools", null));
   ensureDevCosts(db);
-  assert.deepEqual(Object.keys(readRegister(db).repoLinks), ["hattie.com"]);
+  assert.deepEqual(Object.keys(readRegister(db).repoLinks).sort(), ["acme-tools", "hattie.com", "portal"]);
+  assert.deepEqual(readMigrationConflicts(db), []);
 });
 
 test("adding the folder column clears the change cache once so transcripts are re-read", () => {

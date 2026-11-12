@@ -8,7 +8,7 @@ import type Database from "better-sqlite3";
 import type { BillingProfile, Client, Register } from "./store.ts";
 import { Conflict, NotFound } from "./store.ts";
 import type { PeriodView } from "./view.ts";
-import { hoursOf, type RepoTime } from "./time.ts";
+import { easternDate, hoursOf, type RepoTime } from "./time.ts";
 
 export type LineKind = "time" | "subscription" | "other";
 export type LineInput = {
@@ -34,7 +34,8 @@ export type Invoice = InvoiceSummary & { notes: string; from: BillingProfile | n
 // How the draft was built, kept so an issued document can be explained later.
 export type InvoiceSource = { generatedAt: string; idleCutoffMin: number; trackerBuiltAt: string | null; trackerLatest: string | null; periods: string[] };
 
-const cents = (usd: number) => Math.round(usd * 100);
+// toPrecision clears binary noise first, so 1.005 rounds to 1.01 rather than 1.00.
+const cents = (usd: number) => Math.round(Number((usd * 100).toPrecision(12)));
 export const round2 = (usd: number) => cents(usd) / 100;
 
 export function monthRange(month: string): [string, string] {
@@ -235,20 +236,32 @@ export function dueDate(issuedOn: string, paymentTerms: string): string {
 
 // Issues a draft: numbers it (INV-2026-001 for invoices, STM-2026-001 for track-only
 // statements, counting up within each year), sets the due date from the payment terms and
-// keeps a copy of the "from" details, so later edits to them do not change what was sent.
+// keeps a copy of the client's and the "from" details as they are now, so later edits to
+// them do not change what was sent. A draft built before its month ended is refused: it
+// would lock in a part month.
 export function issueInvoice(db: Database.Database, id: number, issuedOn: string, profile: BillingProfile, now = new Date()): string {
   return db.transaction(() => {
-    const r = db.prepare(`SELECT status, kind, bill_to FROM dc_invoices WHERE id=?`).get(id) as { status: Status; kind: DocKind; bill_to: string } | undefined;
+    const r = db.prepare(`SELECT status, client_id, month, source FROM dc_invoices WHERE id=?`).get(id) as { status: Status; client_id: number; month: string; source: string } | undefined;
     if (!r) throw new NotFound("Invoice not found");
     if (r.status !== "draft") throw new Conflict("Only a draft can be issued");
-    const prefix = `${r.kind === "invoice" ? "INV" : "STM"}-${issuedOn.slice(0, 4)}-`;
-    const last = (db.prepare(`SELECT number FROM dc_invoices WHERE number LIKE ? ORDER BY number DESC LIMIT 1`).get(`${prefix}%`) as { number: string } | undefined)?.number;
-    const number = `${prefix}${String((last ? Number(last.slice(prefix.length)) : 0) + 1).padStart(3, "0")}`;
-    const terms = (JSON.parse(r.bill_to) as BillTo).paymentTerms;
-    db.prepare(`UPDATE dc_invoices SET status='issued', number=?, issued_on=?, due_on=?, from_profile=?, updated_at=? WHERE id=?`)
-      .run(number, issuedOn, dueDate(issuedOn, terms), JSON.stringify(profile), now.toISOString(), id);
+    if (builtBeforeMonthEnd(r.month, JSON.parse(r.source) as InvoiceSource)) throw new Conflict("This draft was built before the month ended. Rebuild it, check it, then issue it.");
+    const c = db.prepare(`SELECT name, contact, email, address, payment_terms, send_invoices FROM dc_clients WHERE id=?`).get(r.client_id) as
+      { name: string; contact: string; email: string; address: string; payment_terms: string; send_invoices: number } | undefined;
+    if (!c) throw new NotFound("Client not found");
+    const kind: DocKind = c.send_invoices === 1 ? "invoice" : "statement";
+    const billTo: BillTo = { name: c.name, contact: c.contact, email: c.email, address: c.address, paymentTerms: c.payment_terms };
+    const prefix = `${kind === "invoice" ? "INV" : "STM"}-${issuedOn.slice(0, 4)}-`;
+    const last = (db.prepare(`SELECT MAX(CAST(substr(number, ?) AS INTEGER)) AS n FROM dc_invoices WHERE number LIKE ?`).get(prefix.length + 1, `${prefix}%`) as { n: number | null }).n ?? 0;
+    const number = `${prefix}${String(last + 1).padStart(3, "0")}`;
+    db.prepare(`UPDATE dc_invoices SET status='issued', kind=?, bill_to=?, number=?, issued_on=?, due_on=?, from_profile=?, updated_at=? WHERE id=?`)
+      .run(kind, JSON.stringify(billTo), number, issuedOn, dueDate(issuedOn, billTo.paymentTerms), JSON.stringify(profile), now.toISOString(), id);
     return number;
   }).immediate();
+}
+
+// True when the draft's numbers were taken before its month was over (Eastern time).
+export function builtBeforeMonthEnd(month: string, source: InvoiceSource): boolean {
+  return easternDate(source.generatedAt) < monthRange(month)[1];
 }
 
 // A draft is deleted outright; an issued document is marked void and kept, number and all.
@@ -264,12 +277,17 @@ export function voidInvoice(db: Database.Database, id: number, now = new Date())
   })();
 }
 
+// Payments go against issued invoices only, and never past the balance.
 export function addPayment(db: Database.Database, invoiceId: number, p: Omit<Payment, "id">, now = new Date()) {
-  const r = db.prepare(`SELECT status FROM dc_invoices WHERE id=?`).get(invoiceId) as { status: Status } | undefined;
-  if (!r) throw new NotFound("Invoice not found");
-  if (r.status !== "issued") throw new Conflict("Payments can be recorded only against an issued invoice");
-  db.prepare(`INSERT INTO dc_payments (invoice_id, paid_on, amount_usd, method, note, created_at) VALUES (?,?,?,?,?,?)`)
-    .run(invoiceId, p.paidOn, round2(p.amountUsd), p.method, p.note, now.toISOString());
+  db.transaction(() => {
+    const r = db.prepare(`SELECT * FROM dc_invoices WHERE id=?`).get(invoiceId) as InvoiceRow | undefined;
+    if (!r) throw new NotFound("Invoice not found");
+    if (r.status !== "issued" || r.kind !== "invoice") throw new Conflict("Payments can be recorded only against an issued invoice");
+    const balance = cents(summary(db, r).balanceUsd);
+    if (cents(p.amountUsd) > balance) throw new Conflict(`That is more than the balance of $${(balance / 100).toFixed(2)}`);
+    db.prepare(`INSERT INTO dc_payments (invoice_id, paid_on, amount_usd, method, note, created_at) VALUES (?,?,?,?,?,?)`)
+      .run(invoiceId, p.paidOn, round2(p.amountUsd), p.method, p.note, now.toISOString());
+  }).immediate();
 }
 
 export function deletePayment(db: Database.Database, id: number) {

@@ -24,7 +24,8 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   if (!Number.isInteger(n) || n <= 0) notFound();
   let inv: Invoice;
   try { inv = readInvoice(sqlite, n); } catch (err) { if (err instanceof NotFound) notFound(); throw err; }
-  // A draft shows the current details; an issued document the ones it was issued with.
+  // A draft shows the current "from" details; an issued document the ones it was issued with.
+  // (The bill-to block of a draft is refreshed from the client when it is issued.)
   const from = inv.from ?? readProfile(sqlite);
   const title = inv.kind === "invoice" ? "Invoice" : "Statement";
   const groups = [...new Set(inv.lines.map((l) => l.groupName))];

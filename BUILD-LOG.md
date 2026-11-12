@@ -533,3 +533,24 @@ Validation:
     one added line, was issued as INV-2026-001, due Nov 27 on Net 15.
   - A $100 payment left $1,178.75. Issuing with an October date was refused.
   - Cross-origin POSTs return 403, and the print page returns 404 to a cross-site request.
+
+Independent review (fresh Opus 5.5): Not ready, with 1 blocking finding and 9 others. All
+are fixed in the follow-up commit:
+
+- **Blocking.** A draft built before its month ended can no longer be issued.
+  `issueInvoice` refuses it, and the editor says to rebuild it first.
+- Issuing now re-reads the client. The bill-to details, invoice/statement type, number
+  prefix and due date come from the client as it is at issue time.
+- The migration records clients whose linked projects had different invoicing settings in
+  `dc_meta`. The tab shows them until dismissed, and startup logs them. Live data has none.
+- Payments are refused against statements and above the balance. The check and the insert
+  run in one transaction.
+- The month list shows the document's own total, and flags a draft that no longer matches
+  the current numbers. It also warns when time bills at a $0 rate.
+- Numbering takes the integer maximum, so numbers continue past 999. Rounding clears binary
+  noise first, so 1.005 rounds to 1.01.
+- The migration checks for its marker with a plain read before taking a write lock.
+- Screen fixes: an error is cleared once a later load works, the editor is a labelled
+  region, and the Open buttons have labels. Removing a line asks for confirmation.
+
+Tests: 138 passed. ESLint: no errors.

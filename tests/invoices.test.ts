@@ -8,7 +8,7 @@ import { createRepoResolver, type Repo } from "../src/lib/dev-costs/repos.ts";
 import { Conflict, ensureDevCosts, readRegister, saveClient, saveRepoLink, blankProfile } from "../src/lib/dev-costs/store.ts";
 import { readTrackerRows, tallyTime, type TrackerRow } from "../src/lib/dev-costs/time.ts";
 import {
-  addLine, addPayment, buildLines, deleteLine, dueDate, ensureInvoices, issueInvoice, monthRange, periodsClosingIn, readInvoice, readInvoices,
+  addLine, builtBeforeMonthEnd, round2, addPayment, buildLines, deleteLine, dueDate, ensureInvoices, issueInvoice, monthRange, periodsClosingIn, readInvoice, readInvoices,
   saveDraft, updateLine, voidInvoice, type InvoiceSource,
 } from "../src/lib/dev-costs/invoices.ts";
 import type { PeriodView } from "../src/lib/dev-costs/view.ts";
@@ -79,6 +79,7 @@ function fixture() {
   return { db, acme, home };
 }
 const source: InvoiceSource = { generatedAt: "2026-12-01T10:00:00Z", idleCutoffMin: 10, trackerBuiltAt: null, trackerLatest: null, periods: [] };
+const builtOn = (generatedAt: string): InvoiceSource => ({ ...source, generatedAt });
 const period = {
   subscription: "claude", termId: 1, planName: "Max", feeUsd: 200, start: "2026-10-04", end: "2026-11-04", open: false, prorated: false,
   apiEquivalentUsd: 0, unpricedTokens: 0, unpricedModels: [],
@@ -137,7 +138,7 @@ test("drafts can be edited and rebuilt; issuing numbers and locks them", () => {
   // Track-only clients get statements, numbered separately.
   const stm = saveDraft(db, reg.clients.find((c) => c.id === home)!, "2026-11", [], source);
   assert.equal(issueInvoice(db, stm, "2026-12-01", blankProfile), "STM-2026-001");
-  const next = saveDraft(db, acmeClient, "2026-12", [line], source);
+  const next = saveDraft(db, acmeClient, "2026-12", [line], builtOn("2027-01-02T15:00:00Z"));
   assert.equal(issueInvoice(db, next, "2027-01-02", blankProfile), "INV-2027-001");
 });
 
@@ -162,4 +163,53 @@ test("payments reduce the balance, and voiding keeps the number in the history",
   const draft = saveDraft(db, acmeClient, "2026-12", [line], source);
   voidInvoice(db, draft);
   assert.equal(readInvoices(db).some((i) => i.id === draft), false);
+});
+
+test("a draft built before its month ended cannot be issued until it is rebuilt", () => {
+  const { db, acme } = fixture();
+  const c = readRegister(db).clients.find((x) => x.id === acme)!;
+  const line = { kind: "other" as const, groupName: "", description: "Work", repo: null, quantity: null, unit: "", rateUsd: null, amountUsd: 100 };
+  // Nov 30, 11 PM Eastern is still November; 1 AM Eastern on Dec 1 is after it.
+  assert.equal(builtBeforeMonthEnd("2026-11", builtOn("2026-12-01T04:00:00Z")), true);
+  assert.equal(builtBeforeMonthEnd("2026-11", builtOn("2026-12-01T06:00:00Z")), false);
+  const id = saveDraft(db, c, "2026-11", [line], builtOn("2026-11-20T15:00:00Z"));
+  assert.throws(() => issueInvoice(db, id, "2026-12-02", blankProfile), /Rebuild it/);
+  saveDraft(db, c, "2026-11", [line], builtOn("2026-12-02T15:00:00Z"));
+  assert.equal(issueInvoice(db, id, "2026-12-02", blankProfile), "INV-2026-001");
+});
+
+test("issuing takes the client's details, type and terms as they are at that moment", () => {
+  const { db, acme } = fixture();
+  const c = readRegister(db).clients.find((x) => x.id === acme)!;
+  const id = saveDraft(db, c, "2026-11", [], source);
+  saveClient(db, { ...client, id: acme, name: "Acme Corp", address: "2 New Rd", paymentTerms: "Net 30", sendInvoices: false, hourlyRateUsd: 150, idleCutoffMin: 10 });
+  assert.equal(issueInvoice(db, id, "2026-12-01", blankProfile), "STM-2026-001");
+  const inv = readInvoice(db, id);
+  assert.deepEqual([inv.kind, inv.billTo.name, inv.billTo.address, inv.dueOn], ["statement", "Acme Corp", "2 New Rd", "2026-12-31"]);
+});
+
+test("payments cannot exceed the balance or go against a statement", () => {
+  const { db, acme, home } = fixture();
+  const reg = readRegister(db);
+  const line = { kind: "other" as const, groupName: "", description: "Work", repo: null, quantity: null, unit: "", rateUsd: null, amountUsd: 100 };
+  const inv = saveDraft(db, reg.clients.find((x) => x.id === acme)!, "2026-11", [line], source);
+  issueInvoice(db, inv, "2026-12-01", blankProfile);
+  addPayment(db, inv, { paidOn: "2026-12-02", amountUsd: 60, method: "", note: "" });
+  assert.throws(() => addPayment(db, inv, { paidOn: "2026-12-03", amountUsd: 40.01, method: "", note: "" }), /more than the balance of \$40\.00/);
+  addPayment(db, inv, { paidOn: "2026-12-03", amountUsd: 40, method: "", note: "" });
+  assert.equal(readInvoice(db, inv).balanceUsd, 0);
+  const stm = saveDraft(db, reg.clients.find((x) => x.id === home)!, "2026-11", [line], source);
+  issueInvoice(db, stm, "2026-12-01", blankProfile);
+  assert.throws(() => addPayment(db, stm, { paidOn: "2026-12-02", amountUsd: 1, method: "", note: "" }), Conflict);
+});
+
+test("numbers keep counting past 999, and cents round half up", () => {
+  const { db, acme } = fixture();
+  const c = readRegister(db).clients.find((x) => x.id === acme)!;
+  db.prepare(`INSERT INTO dc_invoices (client_id, month, kind, status, number, issued_on, bill_to, source, created_at, updated_at)
+    VALUES (?, '2026-01', 'invoice', 'issued', 'INV-2026-999', '2026-02-01', '{}', '{}', 'x', 'x'), (?, '2026-02', 'invoice', 'issued', 'INV-2026-1000', '2026-03-01', '{}', '{}', 'x', 'x')`).run(acme, acme);
+  const id = saveDraft(db, c, "2026-11", [], source);
+  assert.equal(issueInvoice(db, id, "2026-12-01", blankProfile), "INV-2026-1001");
+  assert.equal(round2(0.03 * 33.5), 1.01);
+  assert.equal(round2(-25.005), -25);
 });

@@ -9,7 +9,11 @@ const buttonClass = "text-sm border border-card-border rounded-lg px-3 py-2 bg-c
 const card = "bg-card border border-card-border rounded-xl";
 const SUB: Record<string, string> = { claude: "Claude", codex: "ChatGPT", grok: "Grok" };
 
-const easternToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
+const etFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" });
+const easternToday = () => etFmt.format(new Date());
+const nextMonth = (m: string) => { const [y, n] = m.split("-").map(Number); return n === 12 ? `${y + 1}-01` : `${y}-${String(n + 1).padStart(2, "0")}`; };
+// A draft whose numbers were taken before its month ended must be rebuilt before issuing.
+const builtEarly = (inv: Invoice) => etFmt.format(new Date(inv.source.generatedAt)) < `${nextMonth(inv.month)}-01`;
 const monthLabel = (m: string) => new Date(`${m}-15T12:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
 const shortDate = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 const lastDay = (end: string) => new Date(Date.parse(`${end}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
@@ -46,7 +50,7 @@ export function Invoices({ data, reload }: { data: DevCostsPayload; reload: () =
 
   useEffect(() => {
     let live = true;
-    call<MonthPreview>(`/api/dev-costs/invoices?month=${month}`).then((r) => { if (!live) return; if (r.ok) setPreview(r.value); else setError(r.error); });
+    call<MonthPreview>(`/api/dev-costs/invoices?month=${month}`).then((r) => { if (!live) return; if (r.ok) { setPreview(r.value); setError(""); } else setError(r.error); });
     return () => { live = false; };
   }, [month, version, data]);
 
@@ -101,11 +105,13 @@ function MonthCard({ preview: p, busy, run, show }: { preview: MonthPreview; bus
         <thead><tr className="text-xs text-muted text-left"><th className="font-normal py-2">Client</th><th className="font-normal text-right px-2">Hours</th><th className="font-normal text-right px-2">Total</th><th className="font-normal px-2">Document</th><th><span className="sr-only">Actions</span></th></tr></thead>
         <tbody>{p.clients.map((c) => <tr key={c.clientId} className="border-t border-card-border">
           <td className="py-2">{c.clientName}<div className="text-xs text-muted">{c.sendInvoices ? "Invoice" : "Statement, track only"} · idle cutoff {c.idleCutoffMin} min</div></td>
-          <td className="text-right tabular-nums px-2">{c.hours.toFixed(2)}</td>
-          <td className="text-right tabular-nums px-2">{formatCurrency(c.totalUsd)}</td>
-          <td className="px-2">{c.invoice ? statusText(c.invoice) : <span className="text-muted">Not started</span>}</td>
+          <td className="text-right tabular-nums px-2" title={c.invoice && c.invoice.status !== "draft" ? "Hours tracked now; the issued document keeps its own lines" : undefined}>{c.hours.toFixed(2)}</td>
+          <td className="text-right tabular-nums px-2">{formatCurrency(c.invoice ? c.invoice.totalUsd : c.totalUsd)}
+            {c.invoice?.status === "draft" && Math.round(c.invoice.totalUsd * 100) !== Math.round(c.totalUsd * 100) && <div className="text-xs text-warning">Now {formatCurrency(c.totalUsd)}: rebuild to update</div>}</td>
+          <td className="px-2">{c.invoice ? statusText(c.invoice) : <span className="text-muted">Not started</span>}
+            {c.sendInvoices && c.lines.some((l) => l.kind === "time" && l.rateUsd === 0) && <div className="text-xs text-warning">No hourly rate set: time bills at $0</div>}</td>
           <td className="text-right whitespace-nowrap space-x-2">
-            {c.invoice && <button type="button" onClick={() => show(c.invoice!.id)} className="text-xs underline text-muted hover:text-foreground">Open</button>}
+            {c.invoice && <button type="button" aria-label={`Open ${docName(c.invoice)} for ${c.clientName}`} onClick={() => show(c.invoice!.id)} className="text-xs underline text-muted hover:text-foreground">Open</button>}
             {(!c.invoice || c.invoice.status === "draft") && <button type="button" disabled={busy || (c.lines.length === 0 && !c.invoice)}
               onClick={() => { if (!c.invoice || confirm("Rebuild this draft from the current numbers? Line edits are replaced; notes are kept.")) run({ action: "generate", clientId: c.clientId, month: p.month }); }}
               className="text-xs underline text-muted hover:text-foreground disabled:opacity-50 disabled:no-underline">{c.invoice ? "Rebuild" : "Create draft"}</button>}
@@ -130,7 +136,8 @@ function Editor({ invoice: inv, busy, run, close, today }: { invoice: Invoice; b
   const [pay, setPay] = useState({ paidOn: today, amountUsd: "", method: "", note: "" });
   const monthOver = today.slice(0, 7) > inv.month;
   const groups = [...new Set(inv.lines.map((l) => l.groupName))];
-  return <div className={`${card} p-4 sm:p-5 space-y-4`} aria-label={`${docName(inv)} for ${inv.billTo.name}`}>
+  const early = draft && builtEarly(inv);
+  return <div role="region" className={`${card} p-4 sm:p-5 space-y-4`} aria-label={`${docName(inv)} for ${inv.billTo.name}`}>
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
         <h3 className="text-sm font-semibold">{docName(inv)} · {inv.billTo.name} · {monthLabel(inv.month)}</h3>
@@ -159,9 +166,10 @@ function Editor({ invoice: inv, busy, run, close, today }: { invoice: Invoice; b
     </form> : inv.notes && <p className="text-sm whitespace-pre-wrap">{inv.notes}</p>}
     {draft && <div className="flex flex-wrap items-end gap-3 border-t border-card-border pt-4">
       <label className="text-xs text-muted space-y-1 block">Issue date<input type="date" value={issuedOn} onChange={(e) => setIssuedOn(e.target.value)} className={`${inputClass} w-auto`} /></label>
-      <button type="button" disabled={busy || !monthOver} title={monthOver ? undefined : "The month has not ended yet"} onClick={() => { if (confirm(`Issue this ${docName(inv).toLowerCase()}? It gets a number and can no longer be edited.`)) run({ action: "issue", invoiceId: inv.id, issuedOn }); }} className={buttonClass}>Issue {docName(inv).toLowerCase()}</button>
+      <button type="button" disabled={busy || !monthOver || early} title={!monthOver ? "The month has not ended yet" : early ? "Rebuild the draft first" : undefined} onClick={() => { if (confirm(`Issue this ${docName(inv).toLowerCase()}? It gets a number and can no longer be edited.`)) run({ action: "issue", invoiceId: inv.id, issuedOn }); }} className={buttonClass}>Issue {docName(inv).toLowerCase()}</button>
       <button type="button" disabled={busy} onClick={() => { if (confirm("Delete this draft?")) run({ action: "void", invoiceId: inv.id }); }} className={`${buttonClass} hover:text-critical`}>Delete draft</button>
       {!monthOver && <p className="text-xs text-muted w-full">You can issue it once {monthLabel(inv.month)} has ended.</p>}
+      {monthOver && early && <p className="text-xs text-warning w-full">This draft was built before {monthLabel(inv.month)} ended, so it is missing the rest of the month. Rebuild it from the month list above, check it, then issue it.</p>}
     </div>}
     {inv.status === "issued" && inv.kind === "invoice" && <div className="border-t border-card-border pt-4 space-y-3">
       <h4 className="text-sm font-medium">Payments</h4>
@@ -197,7 +205,7 @@ function LineRow({ line: l, draft, busy, run, invoiceId }: { line: Line; draft: 
     <td className="text-right tabular-nums px-2">{formatCurrency(l.amountUsd)}</td>
     {draft && <td className="text-right whitespace-nowrap space-x-2">
       <button type="button" onClick={() => setEditing(true)} className="text-xs underline text-muted hover:text-foreground">Edit</button>
-      <button type="button" disabled={busy} onClick={() => run({ action: "deleteLine", invoiceId, lineId: l.id })} className="text-xs underline text-muted hover:text-critical">Remove</button>
+      <button type="button" disabled={busy} onClick={() => { if (confirm(`Remove “${l.description}”?`)) run({ action: "deleteLine", invoiceId, lineId: l.id }); }} className="text-xs underline text-muted hover:text-critical">Remove</button>
     </td>}
   </tr>;
 }
@@ -239,7 +247,7 @@ function History({ invoices, show }: { invoices: InvoiceSummary[]; show: (id: nu
         <td className="px-4 sm:px-5 py-2">{monthLabel(i.month)}</td><td>{i.billTo.name}</td><td>{docName(i)} · {statusText(i)}</td>
         <td className="text-right tabular-nums px-2">{formatCurrency(i.totalUsd)}</td>
         <td className="text-right tabular-nums px-2">{i.status === "issued" && i.kind === "invoice" ? formatCurrency(i.balanceUsd) : "—"}</td>
-        <td className="px-4 sm:px-5 text-right"><button type="button" onClick={() => show(i.id)} className="text-xs underline text-muted hover:text-foreground">Open</button></td>
+        <td className="px-4 sm:px-5 text-right"><button type="button" aria-label={`Open ${docName(i)} for ${i.billTo.name}, ${monthLabel(i.month)}`} onClick={() => show(i.id)} className="text-xs underline text-muted hover:text-foreground">Open</button></td>
       </tr>)}</tbody>
     </table></div>
   </div>;

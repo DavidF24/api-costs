@@ -3,7 +3,7 @@ import { z } from "zod";
 import { sqlite } from "@/lib/db";
 import { localKeyRequest } from "@/lib/api-keys/request";
 import { getDevCosts } from "@/lib/dev-costs";
-import { Conflict, deleteClient, deleteTerm, NotFound, saveClient, saveProfile, saveRepoLink, saveTerm } from "@/lib/dev-costs/store";
+import { Conflict, deleteClient, deleteTerm, dismissMigrationConflicts, NotFound, saveClient, saveProfile, saveRepoLink, saveTerm } from "@/lib/dev-costs/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,6 +33,7 @@ const action = z.discriminatedUnion("action", [
     feeUsd: z.number().min(0).max(100000), renewalDay: z.number().int().min(1).max(31), startsOn: date,
   }).strict(),
   z.object({ action: z.literal("deleteTerm"), id }).strict(),
+  z.object({ action: z.literal("dismissMigrationConflicts") }).strict(),
 ]);
 
 export async function GET(request: Request) {
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
       case "saveProfile": saveProfile(sqlite, { businessName: a.businessName, address: a.address, email: a.email, phone: a.phone, paymentInstructions: a.paymentInstructions }); break;
       case "saveTerm": saveTerm(sqlite, a); break;
       case "deleteTerm": deleteTerm(sqlite, a.id); break;
+      case "dismissMigrationConflicts": dismissMigrationConflicts(sqlite); break;
     }
   } catch (err) {
     if (err instanceof NotFound) return NextResponse.json({ error: err.message }, { status: 404 });

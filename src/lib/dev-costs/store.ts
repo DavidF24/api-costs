@@ -62,20 +62,43 @@ export function ensureDevCosts(db: Database.Database) {
 // Billing moved from client -> project -> repository to repositories linked straight to a
 // client, with the project as an optional label. Runs once (marker row). Each linked
 // repository keeps its client and takes its old project's name as its label. Invoicing
-// becomes a client setting, so a client is set to send invoices when any of its projects
-// was set to send them. The old project tables are left in place, unused.
+// becomes a client setting: a client is set to send invoices when any of its projects was
+// set to send them. Where a client's linked projects disagreed (some sent, some track
+// only), their names are kept in dc_meta ('repo_billing_conflicts') and shown on the tab.
+// The old project tables are left in place, unused.
 function migrateToRepoBilling(db: Database.Database) {
+  const columns = () => (db.prepare(`SELECT name FROM pragma_table_info('dc_clients')`).all() as { name: string }[]).map((c) => c.name);
+  const marked = () => !!db.prepare(`SELECT 1 FROM dc_meta WHERE key='repo_billing'`).get();
+  const cols0 = columns();
+  if (cols0.includes("hourly_rate_usd") && cols0.includes("idle_cutoff_min") && marked()) return; // a plain read: no write lock on every start
   db.transaction(() => {
-    const cols = (db.prepare(`SELECT name FROM pragma_table_info('dc_clients')`).all() as { name: string }[]).map((c) => c.name);
+    const cols = columns();
     if (!cols.includes("hourly_rate_usd")) db.exec(`ALTER TABLE dc_clients ADD COLUMN hourly_rate_usd REAL NOT NULL DEFAULT 0 CHECK (hourly_rate_usd >= 0)`);
     if (!cols.includes("idle_cutoff_min")) db.exec(`ALTER TABLE dc_clients ADD COLUMN idle_cutoff_min INTEGER NOT NULL DEFAULT ${DEFAULT_IDLE_CUTOFF_MIN} CHECK (idle_cutoff_min BETWEEN 0 AND 240)`);
-    if (db.prepare(`SELECT 1 FROM dc_meta WHERE key='repo_billing'`).get()) return;
+    if (marked()) return;
+    const conflicts = (db.prepare(`SELECT c.name FROM dc_clients c JOIN dc_projects p ON p.client_id = c.id
+        WHERE EXISTS (SELECT 1 FROM dc_repo_projects rp WHERE rp.project_id = p.id)
+        GROUP BY c.id HAVING COUNT(DISTINCT COALESCE(p.send_invoices, c.send_invoices)) > 1 ORDER BY c.name`).all() as { name: string }[]).map((r) => r.name);
     db.exec(`INSERT OR IGNORE INTO dc_repos (repo, client_id, display_name, project_name, hourly_rate_usd)
         SELECT rp.repo, p.client_id, '', p.name, NULL FROM dc_repo_projects rp JOIN dc_projects p ON p.id = rp.project_id;
       UPDATE dc_clients SET send_invoices = 1
         WHERE send_invoices = 0 AND EXISTS (SELECT 1 FROM dc_projects p WHERE p.client_id = dc_clients.id AND p.send_invoices = 1);`);
+    if (conflicts.length) {
+      db.prepare(`INSERT OR REPLACE INTO dc_meta (key, value) VALUES ('repo_billing_conflicts', ?)`).run(JSON.stringify(conflicts));
+      console.warn(`Development costs: invoicing is now set per client. Check these clients, whose projects had different settings: ${conflicts.join(", ")}`);
+    }
     db.prepare(`INSERT INTO dc_meta (key, value) VALUES ('repo_billing', ?)`).run(new Date().toISOString());
   }).immediate();
+}
+
+// Clients whose old projects had different invoicing settings when billing moved to
+// repositories; shown on the tab until dismissed.
+export function readMigrationConflicts(db: Database.Database): string[] {
+  const row = db.prepare(`SELECT value FROM dc_meta WHERE key='repo_billing_conflicts'`).get() as { value: string } | undefined;
+  try { return row ? JSON.parse(row.value) : []; } catch { return []; }
+}
+export function dismissMigrationConflicts(db: Database.Database) {
+  db.prepare(`DELETE FROM dc_meta WHERE key='repo_billing_conflicts'`).run();
 }
 
 // Activity rows now keep the full working folder. The file change cache is cleared once,

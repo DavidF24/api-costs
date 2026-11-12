@@ -4,7 +4,7 @@ import { sqlite } from "@/lib/db";
 import { shiftDate, toEasternDate } from "@/lib/timezone";
 import { createRepoResolver, listRepos, type Repo } from "./repos";
 import { billingPeriods, SUBSCRIPTIONS } from "./split";
-import { DEFAULT_IDLE_CUTOFF_MIN, readFolderUsage, readProfile, readRegister, type BillingProfile, type Register, NotFound } from "./store";
+import { DEFAULT_IDLE_CUTOFF_MIN, readFolderUsage, readMigrationConflicts, readProfile, readRegister, type BillingProfile, type Register, NotFound } from "./store";
 import { buildDevCostsView, ownerOf, splitPeriod, UNASSIGNED, type DevCostsView, type PeriodView } from "./view";
 import { hoursOf, readTrackerRows, tallyTime, type TrackerStatus } from "./time";
 import { buildLines, monthRange, periodsClosingIn, readInvoices, saveDraft, type InvoiceSummary, type LineInput } from "./invoices";
@@ -32,7 +32,7 @@ function repos(): Repo[] {
   return found;
 }
 
-export type DevCostsPayload = DevCostsView & { profile: BillingProfile; invoices: InvoiceSummary[] };
+export type DevCostsPayload = DevCostsView & { profile: BillingProfile; invoices: InvoiceSummary[]; migrationConflicts: string[] };
 
 export function getDevCosts(now = new Date()): DevCostsPayload {
   const today = toEasternDate(now);
@@ -45,7 +45,7 @@ export function getDevCosts(now = new Date()): DevCostsPayload {
     usage: (start, end, sources) => readFolderUsage(sqlite, start, end, sources),
     repoWindowStart: shiftDate(today, -(REPO_USAGE_DAYS - 1)),
   });
-  return { ...view, profile: readProfile(sqlite), invoices: readInvoices(sqlite) };
+  return { ...view, profile: readProfile(sqlite), invoices: readInvoices(sqlite), migrationConflicts: readMigrationConflicts(sqlite) };
 }
 
 export type ClientMonth = { clientId: number; clientName: string; sendInvoices: boolean; idleCutoffMin: number; lines: LineInput[]; totalUsd: number; hours: number; invoice: InvoiceSummary | null };
